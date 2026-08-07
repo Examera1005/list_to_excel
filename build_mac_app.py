@@ -79,7 +79,7 @@ fi
 
     # 3. Copier les fichiers sources du projet dans Resources
     files_to_copy = [
-        "app_gui.py", "app_tui.py", "dupliquer.py",
+        "app_gui.py", "app_tui.py", "dupliquer.py", ".version",
         "template.xlsx", "liste_eleves_1M1.xlsx", "liste_eleves_1M2.xlsx"
     ]
     

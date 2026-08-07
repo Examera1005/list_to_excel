@@ -2,10 +2,7 @@
 """
 🎓 Générateur de Fichiers Élèves - Interface Graphique (GUI)
 Style Minimaliste Zinc & Violet Foncé.
-- Mise à jour automatique en 1 clic depuis GitHub (pour les zips et clones)
-- Supprimer uniquement la sélection
-- Autocomplétion de chemins type zsh/fish (QCompleter)
-- Recherche et filtre dynamique type FZF dans les listes
+- Gestionnaire de versioning & comparaison de Hash/Commit local vs GitHub
 """
 
 import os
@@ -22,8 +19,38 @@ GITHUB_REPO = "Examera1005/list_to_excel"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/commits/master"
 GITHUB_ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/master.zip"
 
+def get_local_commit():
+    """Lit le hash de version/commit local enregistré."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    version_file = os.path.join(script_dir, ".version")
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+                if val:
+                    return val
+        except Exception:
+            pass
+    try:
+        res = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=script_dir, stderr=subprocess.DEVNULL).decode().strip()
+        if res:
+            return res
+    except Exception:
+        pass
+    return "v1.0.0"
+
+def save_local_commit(commit_sha):
+    """Enregistre le hash du commit localement après une mise à jour réussie."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    version_file = os.path.join(script_dir, ".version")
+    try:
+        with open(version_file, "w", encoding="utf-8") as f:
+            f.write(commit_sha)
+    except Exception:
+        pass
+
 def check_github_update():
-    """Vérifie le dernier commit sur GitHub."""
+    """Vérifie le dernier commit sur GitHub master."""
     try:
         req = urllib.request.Request(GITHUB_API_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=4) as response:
@@ -325,7 +352,9 @@ def run_pyside6_app():
             header_text_layout = QtWidgets.QVBoxLayout()
             title_label = QtWidgets.QLabel("Générateur de Documents Élèves")
             title_label.setStyleSheet("font-size: 18px; font-weight: 700; color: #FAFAFA;")
-            subtitle_label = QtWidgets.QLabel("Duplication automatique de templates Excel par classe")
+            
+            current_local = get_local_commit()
+            subtitle_label = QtWidgets.QLabel(f"Duplication automatique par classe (Version : {current_local})")
             subtitle_label.setStyleSheet("font-size: 12px; color: #A1A1AA;")
             header_text_layout.addWidget(title_label)
             header_text_layout.addWidget(subtitle_label)
@@ -460,18 +489,34 @@ def run_pyside6_app():
             main_layout.addWidget(self.txt_log)
 
         def check_and_update_gui(self):
-            commit = check_github_update()
-            if not commit:
-                self.show_styled_dialog(QtWidgets.QMessageBox.Information, "GitHub Status", "Impossible de contacter GitHub ou aucune mise à jour récente.")
+            local_sha = get_local_commit()
+            latest_sha = check_github_update()
+
+            if not latest_sha:
+                self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "GitHub Status", "Impossible de contacter GitHub pour vérifier les mises à jour.")
                 return
+
+            if local_sha == latest_sha:
+                self.show_styled_dialog(
+                    QtWidgets.QMessageBox.Information,
+                    "Application à jour",
+                    f"✅ Votre application est déjà à jour !\n\n• Version locale : {local_sha}\n• Version GitHub : {latest_sha}"
+                )
+                return
+
             reply = QtWidgets.QMessageBox.question(
                 self, "Mise à jour GitHub disponible",
-                f"Voulez-vous télécharger les derniers fichiers de l'application depuis GitHub (Commit {commit}) ?",
+                f"🎉 Une nouvelle version est disponible sur GitHub !\n\n• Version actuelle : {local_sha}\n• Nouvelle version : {latest_sha}\n\nVoulez-vous la télécharger ?",
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
             )
             if reply == QtWidgets.QMessageBox.Yes:
                 if download_and_apply_update():
-                    self.show_styled_dialog(QtWidgets.QMessageBox.Information, "Mise à jour réussie !", "Les fichiers ont été mis à jour avec succès depuis GitHub ! Veuillez redémarrer l'application.")
+                    save_local_commit(latest_sha)
+                    self.show_styled_dialog(
+                        QtWidgets.QMessageBox.Information,
+                        "Mise à jour réussie !",
+                        f"✅ L'application a été mise à jour avec succès vers la version {latest_sha} !\nVeuillez redémarrer l'application."
+                    )
                 else:
                     self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "Échec", "La mise à jour automatique a échoué.")
 
@@ -713,13 +758,18 @@ def run_tkinter_app():
             self.txt_log.pack(fill="both", expand=True)
 
         def check_and_update_tk(self):
-            commit = check_github_update()
-            if not commit:
-                messagebox.showinfo("Mise à jour GitHub", "Impossible de contacter GitHub ou aucune mise à jour récente.")
+            local_sha = get_local_commit()
+            latest_sha = check_github_update()
+            if not latest_sha:
+                messagebox.showinfo("Mise à jour GitHub", "Impossible de contacter GitHub pour vérifier les mises à jour.")
                 return
-            if messagebox.askyesno("Mise à jour GitHub", f"Une mise à jour est disponible sur GitHub (Commit {commit}).\n\nSouhaitez-vous mettre à jour les fichiers ?"):
+            if local_sha == latest_sha:
+                messagebox.showinfo("Application à jour", f"✅ Votre application est déjà à jour !\n\n• Version locale : {local_sha}\n• Version GitHub : {latest_sha}")
+                return
+            if messagebox.askyesno("Mise à jour GitHub", f"Une nouvelle version est disponible sur GitHub !\n\n• Version actuelle : {local_sha}\n• Nouvelle version : {latest_sha}\n\nSouhaitez-vous mettre à jour les fichiers ?"):
                 if download_and_apply_update():
-                    messagebox.showinfo("Succès", "L'application a été mise à jour depuis GitHub !")
+                    save_local_commit(latest_sha)
+                    messagebox.showinfo("Succès", f"L'application a été mise à jour vers la version {latest_sha} !")
                 else:
                     messagebox.showerror("Échec", "La mise à jour a échoué.")
 
