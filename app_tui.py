@@ -248,14 +248,14 @@ def main():
     print("---------------------------------------------------------------")
     print("📌 4. FORMATAGE DU NOM DE FICHIER ET CELLULE C3")
     print("Format du nom de fichier :")
-    print("  [1] Avec tiret bas '_'  -> 1M4_Abadin_Robert.xlsx (Recommandé)")
-    print("  [2] Avec espaces ' '   -> 1M4 Abadin Robert.xlsx")
+    print("  [1] Avec tiret bas '_'  -> 1M1_Nom_Prenom.xlsx (Recommandé)")
+    print("  [2] Avec espaces ' '   -> 1M1 Nom Prenom.xlsx")
     fmt_choix = input("👉 Choix (défaut=1) : ").strip()
     separateur = " " if fmt_choix == "2" else "_"
 
     print("\nFormat de la cellule C3 :")
-    print("  [1] Prénom Nom (ex: Robert Abadin)")
-    print("  [2] Nom Prénom (ex: Abadin Robert)")
+    print("  [1] Prénom Nom (ex: Alice Dupont)")
+    print("  [2] Nom Prénom (ex: Dupont Alice)")
     c3_choix = input("👉 Choix (défaut=1) : ").strip()
     c3_format = "nom_prenom" if c3_choix == "2" else "prenom_nom"
 
