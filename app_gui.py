@@ -2,7 +2,7 @@
 """
 🎓 Générateur de Fichiers Élèves - Interface Graphique (GUI)
 Style Minimaliste Zinc & Violet Foncé.
-Haute lisibilité, fort contraste et palette épurée.
+100% compatible Dark Theme système (Correctif de contraste complet).
 """
 
 import os
@@ -132,10 +132,11 @@ def run_pyside6_app():
             self.auto_detect_files()
 
         def init_ui(self):
-            # Theme Minimaliste Zinc & Violet Foncé
+            # QSS complet forçant les couleurs sur TOUS les composants (y compris les boîtes de dialogue et messages d'erreur)
             self.setStyleSheet("""
-                QMainWindow {
+                QMainWindow, QDialog, QMessageBox {
                     background-color: #09090B;
+                    color: #FAFAFA;
                 }
                 QWidget {
                     color: #FAFAFA;
@@ -251,6 +252,34 @@ def run_pyside6_app():
                     font-size: 12px;
                     padding: 8px;
                 }
+                /* Boîtes de dialogue & Popups d'erreur */
+                QMessageBox {
+                    background-color: #18181B;
+                    color: #FAFAFA;
+                    border: 1px solid #3F3F46;
+                }
+                QMessageBox QLabel {
+                    color: #FAFAFA;
+                    background-color: transparent;
+                    font-size: 13px;
+                }
+                QMessageBox QPushButton {
+                    background-color: #27272A;
+                    color: #FAFAFA;
+                    border: 1px solid #3F3F46;
+                    border-radius: 6px;
+                    padding: 6px 16px;
+                    min-width: 70px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #3F3F46;
+                }
+                QToolTip {
+                    background-color: #18181B;
+                    color: #FAFAFA;
+                    border: 1px solid #3F3F46;
+                    padding: 4px;
+                }
             """)
 
             central_widget = QtWidgets.QWidget()
@@ -259,7 +288,7 @@ def run_pyside6_app():
             main_layout.setContentsMargins(24, 24, 24, 24)
             main_layout.setSpacing(14)
 
-            # En-tête minimaliste
+            # En-tête
             header_layout = QtWidgets.QVBoxLayout()
             title_label = QtWidgets.QLabel("Générateur de Documents Élèves")
             title_label.setStyleSheet("font-size: 18px; font-weight: 700; color: #FAFAFA;")
@@ -409,12 +438,19 @@ def run_pyside6_app():
                 self.parent_dir = dirPath
                 self.txt_dest.setText(self.parent_dir)
 
+        def show_styled_dialog(self, icon, title, text):
+            msg = QtWidgets.QMessageBox(self)
+            msg.setIcon(icon)
+            msg.setWindowTitle(title)
+            msg.setText(text)
+            msg.exec()
+
         def start_generation(self):
             if not self.template_path or not os.path.exists(self.template_path):
-                QtWidgets.QMessageBox.warning(self, "Template manquant", "Veuillez sélectionner un fichier template Excel.")
+                self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "Template manquant", "Veuillez sélectionner un fichier template Excel.")
                 return
             if not self.listes_files:
-                QtWidgets.QMessageBox.warning(self, "Listes manquantes", "Veuillez sélectionner au moins une liste d'élèves.")
+                self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "Listes manquantes", "Veuillez sélectionner au moins une liste d'élèves.")
                 return
             parent_d = self.txt_dest.text().strip() or os.path.abspath("fichiers_eleves")
             separateur = "_" if self.rad_sep_underscore.isChecked() else " "
@@ -440,12 +476,12 @@ def run_pyside6_app():
             self.progress_bar.setValue(100)
             self.btn_launch.setEnabled(True)
             self.txt_log.append(f"\n✓ Succès : {total_files} fichier(s) généré(s) pour {total_classes} classe(s) !")
-            QtWidgets.QMessageBox.information(self, "Succès !", f"🎉 {total_files} fichier(s) généré(s) pour {total_classes} classe(s) !\n\n📁 Dossier : {parent_dir}")
+            self.show_styled_dialog(QtWidgets.QMessageBox.Information, "Succès !", f"🎉 {total_files} fichier(s) généré(s) pour {total_classes} classe(s) !\n\n📁 Dossier : {parent_dir}")
 
         def on_error(self, err_msg):
             self.btn_launch.setEnabled(True)
             self.progress_bar.setVisible(False)
-            QtWidgets.QMessageBox.critical(self, "Erreur", f"Erreur :\n{err_msg}")
+            self.show_styled_dialog(QtWidgets.QMessageBox.Critical, "Erreur", f"Erreur :\n{err_msg}")
 
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
@@ -547,7 +583,7 @@ def run_tkinter_app():
             r4 = tk.Radiobutton(f4, text="Nom Prénom (ex: Dupont Alice)", variable=self.var_c3, value="nom_prenom", bg="#18181B", fg="#D4D4D8", selectcolor="#09090B", activebackground="#18181B")
             r4.grid(row=2, column=1, sticky="w", padx=(30, 5))
 
-            # Launch Button (Violet)
+            # Launch Button
             self.btn_launch = self.make_hover_button(main_frame, "Lancer la génération par lots", self.start_generation, bg="#7C3AED", hover_bg="#6D28D9", fg="#FFFFFF", pady=10)
             self.btn_launch.pack(fill="x", pady=12)
 
