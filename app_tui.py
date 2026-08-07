@@ -16,6 +16,13 @@ import sys
 import glob
 import subprocess
 
+try:
+    import readline
+    import rlcompleter
+    readline.parse_and_bind("tab: complete")
+except Exception:
+    pass
+
 def ensure_openpyxl():
     """Vérifie si openpyxl est installé et propose de l'installer si nécessaire."""
     try:

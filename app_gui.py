@@ -2,7 +2,9 @@
 """
 🎓 Générateur de Fichiers Élèves - Interface Graphique (GUI)
 Style Minimaliste Zinc & Violet Foncé.
-100% compatible Dark Theme système (Correctif de contraste complet).
+- Supprimer uniquement la sélection (au lieu de tout effacer)
+- Autocomplétion de chemins type zsh/fish (QCompleter / QFileSystemModel)
+- Recherche et filtre dynamique type FZF dans les listes
 """
 
 import os
@@ -121,8 +123,8 @@ def run_pyside6_app():
         def __init__(self):
             super().__init__()
             self.setWindowTitle("Générateur de Documents Élèves")
-            self.setMinimumSize(850, 700)
-            self.resize(900, 750)
+            self.setMinimumSize(880, 720)
+            self.resize(920, 760)
 
             self.template_path = ""
             self.listes_files = []
@@ -132,7 +134,6 @@ def run_pyside6_app():
             self.auto_detect_files()
 
         def init_ui(self):
-            # QSS complet forçant les couleurs sur TOUS les composants (y compris les boîtes de dialogue et messages d'erreur)
             self.setStyleSheet("""
                 QMainWindow, QDialog, QMessageBox {
                     background-color: #09090B;
@@ -252,35 +253,16 @@ def run_pyside6_app():
                     font-size: 12px;
                     padding: 8px;
                 }
-                /* Boîtes de dialogue & Popups d'erreur */
-                QMessageBox {
+                QCompleter {
                     background-color: #18181B;
                     color: #FAFAFA;
                     border: 1px solid #3F3F46;
-                }
-                QMessageBox QLabel {
-                    color: #FAFAFA;
-                    background-color: transparent;
-                    font-size: 13px;
-                }
-                QMessageBox QPushButton {
-                    background-color: #27272A;
-                    color: #FAFAFA;
-                    border: 1px solid #3F3F46;
-                    border-radius: 6px;
-                    padding: 6px 16px;
-                    min-width: 70px;
-                }
-                QMessageBox QPushButton:hover {
-                    background-color: #3F3F46;
-                }
-                QToolTip {
-                    background-color: #18181B;
-                    color: #FAFAFA;
-                    border: 1px solid #3F3F46;
-                    padding: 4px;
                 }
             """)
+
+            # Configuration Autocomplétion Système de Fichiers (zsh / fish style)
+            self.completer_model = QtWidgets.QFileSystemModel(self)
+            self.completer_model.setRootPath("")
 
             central_widget = QtWidgets.QWidget()
             self.setCentralWidget(central_widget)
@@ -302,8 +284,14 @@ def run_pyside6_app():
             group_template = QtWidgets.QGroupBox("1. Fichier Modèle Template Excel (.xlsx)")
             gt_layout = QtWidgets.QHBoxLayout(group_template)
             self.txt_template = QtWidgets.QLineEdit()
-            self.txt_template.setReadOnly(True)
-            self.txt_template.setPlaceholderText("Aucun template sélectionné...")
+            self.txt_template.setPlaceholderText("Saisissez un chemin (Tab zsh/fish) ou cliquez sur Parcourir...")
+            
+            # Autocomplétion Zsh/Fish style
+            completer_tpl = QtWidgets.QCompleter(self.completer_model, self)
+            completer_tpl.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+            self.txt_template.setCompleter(completer_tpl)
+            self.txt_template.textChanged.connect(self.on_template_text_changed)
+
             btn_browse_tpl = QtWidgets.QPushButton("Parcourir...")
             btn_browse_tpl.setCursor(QtCore.Qt.PointingHandCursor)
             btn_browse_tpl.clicked.connect(self.browse_template)
@@ -314,21 +302,40 @@ def run_pyside6_app():
             # 2. Listes
             group_listes = QtWidgets.QGroupBox("2. Listes de Classes (.xlsx ou .txt)")
             gl_layout = QtWidgets.QVBoxLayout(group_listes)
+            
             gl_top = QtWidgets.QHBoxLayout()
             self.lbl_listes_count = QtWidgets.QLabel("0 classe(s) sélectionnée(s)")
             self.lbl_listes_count.setStyleSheet("color: #A1A1AA; font-weight: normal;")
-            btn_browse_listes = QtWidgets.QPushButton("Parcourir les listes (Finder / Explorateur)...")
+            
+            # Barre de recherche FZF-style
+            self.txt_filter_fzf = QtWidgets.QLineEdit()
+            self.txt_filter_fzf.setPlaceholderText("🔍 Filtrer les listes (fzf)...")
+            self.txt_filter_fzf.setFixedWidth(200)
+            self.txt_filter_fzf.textChanged.connect(self.filter_listes_fzf)
+
+            btn_browse_listes = QtWidgets.QPushButton("Ajouter des listes (Finder / Explorateur)...")
             btn_browse_listes.setCursor(QtCore.Qt.PointingHandCursor)
             btn_browse_listes.clicked.connect(self.browse_listes)
-            btn_clear_listes = QtWidgets.QPushButton("Effacer")
+            
+            btn_remove_selected = QtWidgets.QPushButton("Supprimer sélection")
+            btn_remove_selected.setStyleSheet("background-color: #27272A; color: #F59E0B; border-color: #D97706;")
+            btn_remove_selected.setCursor(QtCore.Qt.PointingHandCursor)
+            btn_remove_selected.clicked.connect(self.remove_selected_listes)
+
+            btn_clear_listes = QtWidgets.QPushButton("Tout effacer")
             btn_clear_listes.setStyleSheet("background-color: #27272A; color: #F43F5E; border-color: #E11D48;")
             btn_clear_listes.setCursor(QtCore.Qt.PointingHandCursor)
             btn_clear_listes.clicked.connect(self.clear_listes)
+
             gl_top.addWidget(self.lbl_listes_count)
+            gl_top.addWidget(self.txt_filter_fzf)
             gl_top.addStretch()
             gl_top.addWidget(btn_browse_listes)
+            gl_top.addWidget(btn_remove_selected)
             gl_top.addWidget(btn_clear_listes)
+            
             self.lst_listes = QtWidgets.QListWidget()
+            self.lst_listes.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
             self.lst_listes.setMaximumHeight(100)
             gl_layout.addLayout(gl_top)
             gl_layout.addWidget(self.lst_listes)
@@ -338,6 +345,12 @@ def run_pyside6_app():
             group_dest = QtWidgets.QGroupBox("3. Dossier de Destination Parent")
             gd_layout = QtWidgets.QHBoxLayout(group_dest)
             self.txt_dest = QtWidgets.QLineEdit(self.parent_dir)
+            
+            # Autocomplétion Zsh/Fish style
+            completer_dest = QtWidgets.QCompleter(self.completer_model, self)
+            completer_dest.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+            self.txt_dest.setCompleter(completer_dest)
+
             btn_browse_dest = QtWidgets.QPushButton("Choisir le dossier...")
             btn_browse_dest.setCursor(QtCore.Qt.PointingHandCursor)
             btn_browse_dest.clicked.connect(self.browse_dest)
@@ -407,6 +420,10 @@ def run_pyside6_app():
                 self.listes_files = listes
                 self.update_listes_widget()
 
+        def on_template_text_changed(self, text):
+            if os.path.exists(text.strip()):
+                self.template_path = text.strip()
+
         def browse_template(self):
             filePath, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Sélectionnez le template Excel", "", "Fichiers Excel (*.xlsx)")
             if filePath:
@@ -422,14 +439,31 @@ def run_pyside6_app():
                         self.listes_files.append(abs_f)
                 self.update_listes_widget()
 
+        def remove_selected_listes(self):
+            selected_items = self.lst_listes.selectedItems()
+            if not selected_items:
+                return
+            for item in selected_items:
+                path = item.data(QtCore.Qt.UserRole)
+                if path in self.listes_files:
+                    self.listes_files.remove(path)
+            self.update_listes_widget()
+
         def clear_listes(self):
             self.listes_files.clear()
             self.update_listes_widget()
 
-        def update_listes_widget(self):
+        def filter_listes_fzf(self, query):
+            query = query.strip().lower()
             self.lst_listes.clear()
             for f in self.listes_files:
-                self.lst_listes.addItem(f"📄 {f}")
+                if not query or query in f.lower():
+                    item = QtWidgets.QListWidgetItem(f"📄 {f}")
+                    item.setData(QtCore.Qt.UserRole, f)
+                    self.lst_listes.addItem(item)
+
+        def update_listes_widget(self):
+            self.filter_listes_fzf(self.txt_filter_fzf.text())
             self.lbl_listes_count.setText(f"{len(self.listes_files)} classe(s) sélectionnée(s)")
 
         def browse_dest(self):
@@ -446,6 +480,10 @@ def run_pyside6_app():
             msg.exec()
 
         def start_generation(self):
+            tpl = self.txt_template.text().strip()
+            if tpl and os.path.exists(tpl):
+                self.template_path = tpl
+
             if not self.template_path or not os.path.exists(self.template_path):
                 self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "Template manquant", "Veuillez sélectionner un fichier template Excel.")
                 return
@@ -501,7 +539,7 @@ def run_tkinter_app():
         def __init__(self):
             super().__init__()
             self.title("Générateur de Documents Élèves")
-            self.geometry("850x700")
+            self.geometry("880x720")
             self.configure(bg="#09090B")
 
             self.template_path = ""
@@ -528,7 +566,7 @@ def run_tkinter_app():
             header_frame.pack(fill="x", pady=(0, 16))
             lbl_title = tk.Label(header_frame, text="Générateur de Documents Élèves", font=("Segoe UI", 16, "bold"), bg="#09090B", fg="#FAFAFA")
             lbl_title.pack(anchor="w")
-            lbl_sub = tk.Label(header_frame, text="Style Zinc Minimaliste | Duplication automatique par classe", font=("Segoe UI", 9), bg="#09090B", fg="#A1A1AA")
+            lbl_sub = tk.Label(header_frame, text="Style Zinc Minimaliste | Autocomplétion & Filtre FZF", font=("Segoe UI", 9), bg="#09090B", fg="#A1A1AA")
             lbl_sub.pack(anchor="w")
 
             # 1. Template Group
@@ -546,12 +584,22 @@ def run_tkinter_app():
             top_l.pack(fill="x", pady=(0, 6))
             self.lbl_count = tk.Label(top_l, text="0 classe(s) sélectionnée(s)", font=("Segoe UI", 9), bg="#18181B", fg="#A1A1AA")
             self.lbl_count.pack(side="left")
-            btn_clear = self.make_hover_button(top_l, "Effacer", self.clear_listes, bg="#27272A", hover_bg="#3F3F46", fg="#F43F5E", padx=8, pady=2)
+
+            # Filtre FZF
+            self.entry_filter = tk.Entry(top_l, bg="#18181B", fg="#FAFAFA", insertbackground="#FAFAFA", bd=1, relief="solid", font=("Segoe UI", 9), width=22)
+            self.entry_filter.pack(side="left", padx=(15, 0))
+            self.entry_filter.bind("<KeyRelease>", self.filter_listes_fzf_tk)
+            lbl_fzf = tk.Label(top_l, text="🔍 fzf", font=("Segoe UI", 9), bg="#18181B", fg="#71717A")
+            lbl_fzf.pack(side="left", padx=(4, 0))
+
+            btn_clear = self.make_hover_button(top_l, "Tout effacer", self.clear_listes, bg="#27272A", hover_bg="#3F3F46", fg="#F43F5E", padx=8, pady=2)
             btn_clear.pack(side="right", padx=(6, 0))
-            btn_listes = self.make_hover_button(top_l, "Parcourir les listes (Finder / Explorateur)...", self.browse_listes, padx=12, pady=2)
+            btn_remove_sel = self.make_hover_button(top_l, "Supprimer sélection", self.remove_selected_listes, bg="#27272A", hover_bg="#3F3F46", fg="#F59E0B", padx=8, pady=2)
+            btn_remove_sel.pack(side="right", padx=(6, 0))
+            btn_listes = self.make_hover_button(top_l, "Ajouter des listes...", self.browse_listes, padx=12, pady=2)
             btn_listes.pack(side="right")
             
-            self.listbox = tk.Listbox(f2, bg="#18181B", fg="#FAFAFA", selectbackground="#7C3AED", selectforeground="#FFFFFF", height=4, bd=1, relief="solid", font=("Segoe UI", 9))
+            self.listbox = tk.Listbox(f2, bg="#18181B", fg="#FAFAFA", selectmode="extended", selectbackground="#7C3AED", selectforeground="#FFFFFF", height=4, bd=1, relief="solid", font=("Segoe UI", 9))
             self.listbox.pack(fill="x")
 
             # 3. Destination Group
@@ -626,14 +674,29 @@ def run_tkinter_app():
                         self.listes_files.append(abs_f)
                 self.update_listbox()
 
+        def remove_selected_listes(self):
+            sel = self.listbox.curselection()
+            if not sel:
+                return
+            for idx in reversed(sel):
+                item_text = self.listbox.get(idx).replace("📄 ", "")
+                if item_text in self.listes_files:
+                    self.listes_files.remove(item_text)
+            self.update_listbox()
+
         def clear_listes(self):
             self.listes_files.clear()
             self.update_listbox()
 
-        def update_listbox(self):
+        def filter_listes_fzf_tk(self, event=None):
+            query = self.entry_filter.get().strip().lower()
             self.listbox.delete(0, tk.END)
             for f in self.listes_files:
-                self.listbox.insert(tk.END, f"📄 {f}")
+                if not query or query in f.lower():
+                    self.listbox.insert(tk.END, f"📄 {f}")
+
+        def update_listbox(self):
+            self.filter_listes_fzf_tk()
             self.lbl_count.config(text=f"{len(self.listes_files)} classe(s) sélectionnée(s)")
 
         def browse_dest(self):
@@ -648,6 +711,10 @@ def run_tkinter_app():
             self.txt_log.see(tk.END)
 
         def start_generation(self):
+            tpl = self.entry_tpl.get().strip()
+            if tpl and os.path.exists(tpl):
+                self.template_path = tpl
+
             if not self.template_path or not os.path.exists(self.template_path):
                 messagebox.showwarning("Avertissement", "Veuillez sélectionner un fichier template Excel.")
                 return
