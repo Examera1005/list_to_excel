@@ -2,8 +2,9 @@
 """
 🎓 Générateur de Fichiers Élèves - Interface Graphique (GUI)
 Style Minimaliste Zinc & Violet Foncé.
-- Supprimer uniquement la sélection (au lieu de tout effacer)
-- Autocomplétion de chemins type zsh/fish (QCompleter / QFileSystemModel)
+- Mise à jour automatique en 1 clic depuis GitHub (pour les zips et clones)
+- Supprimer uniquement la sélection
+- Autocomplétion de chemins type zsh/fish (QCompleter)
 - Recherche et filtre dynamique type FZF dans les listes
 """
 
@@ -11,7 +12,45 @@ import os
 import sys
 import glob
 import subprocess
+import json
+import urllib.request
+import zipfile
+import io
 import openpyxl
+
+GITHUB_REPO = "Examera1005/list_to_excel"
+GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/commits/master"
+GITHUB_ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/master.zip"
+
+def check_github_update():
+    """Vérifie le dernier commit sur GitHub."""
+    try:
+        req = urllib.request.Request(GITHUB_API_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=4) as response:
+            data = json.loads(response.read().decode())
+            return data['sha'][:7]
+    except Exception:
+        return None
+
+def download_and_apply_update():
+    """Télécharge et extrait automatiquement les derniers fichiers depuis GitHub."""
+    try:
+        req = urllib.request.Request(GITHUB_ZIP_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            zip_bytes = response.read()
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            for member in z.namelist():
+                filename = os.path.basename(member)
+                if filename and not filename.startswith('.'):
+                    if filename in ['app_gui.py', 'app_tui.py', 'dupliquer.py', 'build_mac_app.py', 'README.md', 'template.xlsx', 'liste_eleves_1M1.xlsx', 'liste_eleves_1M2.xlsx']:
+                        dest_path = os.path.join(script_dir, filename)
+                        with z.open(member) as src_f, open(dest_path, 'wb') as dst_f:
+                            dst_f.write(src_f.read())
+        return True
+    except Exception:
+        return False
 
 def parse_student_list(liste_path):
     """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
@@ -253,14 +292,25 @@ def run_pyside6_app():
                     font-size: 12px;
                     padding: 8px;
                 }
-                QCompleter {
+                QMessageBox {
                     background-color: #18181B;
                     color: #FAFAFA;
                     border: 1px solid #3F3F46;
                 }
+                QMessageBox QLabel {
+                    color: #FAFAFA;
+                    background-color: transparent;
+                }
+                QMessageBox QPushButton {
+                    background-color: #27272A;
+                    color: #FAFAFA;
+                    border: 1px solid #3F3F46;
+                    border-radius: 6px;
+                    padding: 6px 16px;
+                    min-width: 70px;
+                }
             """)
 
-            # Configuration Autocomplétion Système de Fichiers (zsh / fish style)
             self.completer_model = QtWidgets.QFileSystemModel(self)
             self.completer_model.setRootPath("")
 
@@ -270,14 +320,24 @@ def run_pyside6_app():
             main_layout.setContentsMargins(24, 24, 24, 24)
             main_layout.setSpacing(14)
 
-            # En-tête
-            header_layout = QtWidgets.QVBoxLayout()
+            # En-tête avec bouton de mise à jour GitHub
+            header_layout = QtWidgets.QHBoxLayout()
+            header_text_layout = QtWidgets.QVBoxLayout()
             title_label = QtWidgets.QLabel("Générateur de Documents Élèves")
             title_label.setStyleSheet("font-size: 18px; font-weight: 700; color: #FAFAFA;")
             subtitle_label = QtWidgets.QLabel("Duplication automatique de templates Excel par classe")
             subtitle_label.setStyleSheet("font-size: 12px; color: #A1A1AA;")
-            header_layout.addWidget(title_label)
-            header_layout.addWidget(subtitle_label)
+            header_text_layout.addWidget(title_label)
+            header_text_layout.addWidget(subtitle_label)
+            
+            btn_update = QtWidgets.QPushButton("🔄 Vérifier mise à jour GitHub")
+            btn_update.setStyleSheet("background-color: #18181B; color: #A78BFA; border-color: #7C3AED;")
+            btn_update.setCursor(QtCore.Qt.PointingHandCursor)
+            btn_update.clicked.connect(self.check_and_update_gui)
+
+            header_layout.addLayout(header_text_layout)
+            header_layout.addStretch()
+            header_layout.addWidget(btn_update)
             main_layout.addLayout(header_layout)
 
             # 1. Template
@@ -286,7 +346,6 @@ def run_pyside6_app():
             self.txt_template = QtWidgets.QLineEdit()
             self.txt_template.setPlaceholderText("Saisissez un chemin (Tab zsh/fish) ou cliquez sur Parcourir...")
             
-            # Autocomplétion Zsh/Fish style
             completer_tpl = QtWidgets.QCompleter(self.completer_model, self)
             completer_tpl.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
             self.txt_template.setCompleter(completer_tpl)
@@ -307,7 +366,6 @@ def run_pyside6_app():
             self.lbl_listes_count = QtWidgets.QLabel("0 classe(s) sélectionnée(s)")
             self.lbl_listes_count.setStyleSheet("color: #A1A1AA; font-weight: normal;")
             
-            # Barre de recherche FZF-style
             self.txt_filter_fzf = QtWidgets.QLineEdit()
             self.txt_filter_fzf.setPlaceholderText("🔍 Filtrer les listes (fzf)...")
             self.txt_filter_fzf.setFixedWidth(200)
@@ -346,7 +404,6 @@ def run_pyside6_app():
             gd_layout = QtWidgets.QHBoxLayout(group_dest)
             self.txt_dest = QtWidgets.QLineEdit(self.parent_dir)
             
-            # Autocomplétion Zsh/Fish style
             completer_dest = QtWidgets.QCompleter(self.completer_model, self)
             completer_dest.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
             self.txt_dest.setCompleter(completer_dest)
@@ -401,6 +458,22 @@ def run_pyside6_app():
             self.txt_log.setReadOnly(True)
             self.txt_log.setMaximumHeight(110)
             main_layout.addWidget(self.txt_log)
+
+        def check_and_update_gui(self):
+            commit = check_github_update()
+            if not commit:
+                self.show_styled_dialog(QtWidgets.QMessageBox.Information, "GitHub Status", "Impossible de contacter GitHub ou aucune mise à jour récente.")
+                return
+            reply = QtWidgets.QMessageBox.question(
+                self, "Mise à jour GitHub disponible",
+                f"Voulez-vous télécharger les derniers fichiers de l'application depuis GitHub (Commit {commit}) ?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+            )
+            if reply == QtWidgets.QMessageBox.Yes:
+                if download_and_apply_update():
+                    self.show_styled_dialog(QtWidgets.QMessageBox.Information, "Mise à jour réussie !", "Les fichiers ont été mis à jour avec succès depuis GitHub ! Veuillez redémarrer l'application.")
+                else:
+                    self.show_styled_dialog(QtWidgets.QMessageBox.Warning, "Échec", "La mise à jour automatique a échoué.")
 
         def auto_detect_files(self):
             all_xlsx = glob.glob("*.xlsx")
@@ -565,9 +638,10 @@ def run_tkinter_app():
             header_frame = tk.Frame(main_frame, bg="#09090B")
             header_frame.pack(fill="x", pady=(0, 16))
             lbl_title = tk.Label(header_frame, text="Générateur de Documents Élèves", font=("Segoe UI", 16, "bold"), bg="#09090B", fg="#FAFAFA")
-            lbl_title.pack(anchor="w")
-            lbl_sub = tk.Label(header_frame, text="Style Zinc Minimaliste | Autocomplétion & Filtre FZF", font=("Segoe UI", 9), bg="#09090B", fg="#A1A1AA")
-            lbl_sub.pack(anchor="w")
+            lbl_title.pack(side="left")
+            
+            btn_upd = self.make_hover_button(header_frame, "🔄 Mise à jour GitHub", self.check_and_update_tk, bg="#18181B", hover_bg="#27272A", fg="#A78BFA", padx=8, pady=3)
+            btn_upd.pack(side="right")
 
             # 1. Template Group
             f1 = tk.LabelFrame(main_frame, text=" 1. Fichier Modèle Template Excel (.xlsx) ", font=("Segoe UI", 10, "bold"), bg="#18181B", fg="#A78BFA", padx=14, pady=10, bd=1, relief="solid")
@@ -585,7 +659,6 @@ def run_tkinter_app():
             self.lbl_count = tk.Label(top_l, text="0 classe(s) sélectionnée(s)", font=("Segoe UI", 9), bg="#18181B", fg="#A1A1AA")
             self.lbl_count.pack(side="left")
 
-            # Filtre FZF
             self.entry_filter = tk.Entry(top_l, bg="#18181B", fg="#FAFAFA", insertbackground="#FAFAFA", bd=1, relief="solid", font=("Segoe UI", 9), width=22)
             self.entry_filter.pack(side="left", padx=(15, 0))
             self.entry_filter.bind("<KeyRelease>", self.filter_listes_fzf_tk)
@@ -638,6 +711,17 @@ def run_tkinter_app():
             # Console Log
             self.txt_log = tk.Text(main_frame, bg="#18181B", fg="#A78BFA", height=6, font=("Consolas", 9), bd=1, relief="solid")
             self.txt_log.pack(fill="both", expand=True)
+
+        def check_and_update_tk(self):
+            commit = check_github_update()
+            if not commit:
+                messagebox.showinfo("Mise à jour GitHub", "Impossible de contacter GitHub ou aucune mise à jour récente.")
+                return
+            if messagebox.askyesno("Mise à jour GitHub", f"Une mise à jour est disponible sur GitHub (Commit {commit}).\n\nSouhaitez-vous mettre à jour les fichiers ?"):
+                if download_and_apply_update():
+                    messagebox.showinfo("Succès", "L'application a été mise à jour depuis GitHub !")
+                else:
+                    messagebox.showerror("Échec", "La mise à jour a échoué.")
 
         def auto_detect_files(self):
             all_xlsx = glob.glob("*.xlsx")
