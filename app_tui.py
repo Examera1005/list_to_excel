@@ -6,9 +6,9 @@ Compatible macOS / Linux / Windows
 
 import os
 import sys
-import shutil
 import glob
 import subprocess
+import openpyxl
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -37,6 +37,56 @@ def get_native_folder_picker(title="Choisir un dossier"):
             pass
     return None
 
+def parse_student_list(liste_path):
+    """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
+    eleves = []
+    
+    if liste_path.endswith(".xlsx"):
+        wb = openpyxl.load_workbook(liste_path, data_only=True)
+        ws = wb.active
+        
+        header_row = None
+        for r in range(1, 30):
+            vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
+            if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
+                header_row = r
+                break
+                
+        if not header_row:
+            print("❌ En-têtes 'Nom' et 'Prénom' introuvables dans le fichier Excel.")
+            return []
+            
+        nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
+        prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
+        group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
+        
+        for r in range(header_row + 1, ws.max_row + 1):
+            nom = ws.cell(row=r, column=nom_c).value
+            prenom = ws.cell(row=r, column=prenom_c).value
+            grp = ws.cell(row=r, column=group_c).value if group_c else ''
+            
+            if nom and prenom:
+                eleves.append({
+                    "nom": str(nom).strip(),
+                    "prenom": str(prenom).strip(),
+                    "classe": str(grp).strip() if grp else ""
+                })
+    else:
+        with open(liste_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        prenom = parts[0]
+                        nom = " ".join(parts[1:])
+                    else:
+                        prenom = line
+                        nom = ""
+                    eleves.append({"nom": nom, "prenom": prenom, "classe": ""})
+                    
+    return eleves
+
 def main():
     clear_screen()
     print("===============================================================")
@@ -54,26 +104,31 @@ def main():
         print("Fichiers Excel trouvés dans le dossier actuel :")
         for idx, f in enumerate(templates_locaux, 1):
             print(f"  [{idx}] {f}")
-        print(f"  [M] Ouvrir le sélecteur de fichier macOS")
+        print(f"  [M] Ouvrir le sélecteur macOS")
         print(f"  [S] Saisir le chemin manuellement")
         
-        choix = input("\n👉 Choix (défaut=1) : ").strip()
+        # Prédélection du template
+        def_idx = 1
+        for idx, f in enumerate(templates_locaux, 1):
+            if "copie" in f.lower() or "template" in f.lower():
+                def_idx = idx
+                break
+
+        choix = input(f"\n👉 Choix (défaut={def_idx}) : ").strip()
         if choix.upper() == 'M':
             template_path = get_native_file_picker("Sélectionnez votre fichier template Excel")
         elif choix.upper() == 'S':
             template_path = input("Chemin du fichier template : ").strip()
         else:
             try:
-                idx_sel = int(choix) - 1 if choix else 0
+                idx_sel = int(choix) - 1 if choix else (def_idx - 1)
                 template_path = templates_locaux[idx_sel]
             except (ValueError, IndexError):
-                template_path = templates_locaux[0]
+                template_path = templates_locaux[def_idx - 1]
     else:
         print("Aucun fichier .xlsx dans le dossier courant.")
         if sys.platform == "darwin":
-            print("Ouverture du sélecteur macOS...")
             template_path = get_native_file_picker("Sélectionnez votre fichier template Excel")
-        
         if not template_path:
             template_path = input("👉 Entrez le chemin du fichier template.xlsx : ").strip()
 
@@ -84,44 +139,52 @@ def main():
     print(f"✅ Template sélectionné : {template_path}\n")
 
     # -------------------------------------------------------------------------
-    # 2. SÉLECTION DE LA LISTE DES ÉLÈVES (.txt)
+    # 2. SÉLECTION DE LA LISTE DES ÉLÈVES (.xlsx ou .txt)
     # -------------------------------------------------------------------------
     print("---------------------------------------------------------------")
-    print("📌 2. LISTE DES ÉLÈVES")
-    txt_locaux = glob.glob("*.txt")
+    print("📌 2. LISTE DES ÉLÈVES (.xlsx ou .txt)")
+    fichiers_liste = glob.glob("*.xlsx") + glob.glob("*.txt")
     liste_path = ""
 
-    if txt_locaux:
-        print("Fichiers texte trouvés dans le dossier actuel :")
-        for idx, f in enumerate(txt_locaux, 1):
+    if fichiers_liste:
+        print("Fichiers trouvés dans le dossier actuel :")
+        for idx, f in enumerate(fichiers_liste, 1):
             print(f"  [{idx}] {f}")
         print(f"  [M] Ouvrir le sélecteur macOS")
         print(f"  [S] Saisir le chemin manuellement")
         
-        choix = input("\n👉 Choix (défaut=1) : ").strip()
+        # Prédirection de la liste
+        def_idx_l = 1
+        for idx, f in enumerate(fichiers_liste, 1):
+            if "liste" in f.lower() or f == "eleves.txt":
+                def_idx_l = idx
+                break
+
+        choix = input(f"\n👉 Choix (défaut={def_idx_l}) : ").strip()
         if choix.upper() == 'M':
             liste_path = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
         elif choix.upper() == 'S':
             liste_path = input("Chemin du fichier liste : ").strip()
         else:
             try:
-                idx_sel = int(choix) - 1 if choix else 0
-                liste_path = txt_locaux[idx_sel]
+                idx_sel = int(choix) - 1 if choix else (def_idx_l - 1)
+                liste_path = fichiers_liste[idx_sel]
             except (ValueError, IndexError):
-                liste_path = txt_locaux[0]
+                liste_path = fichiers_liste[def_idx_l - 1]
     else:
         if sys.platform == "darwin":
             liste_path = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
         if not liste_path:
-            liste_path = input("👉 Entrez le chemin du fichier eleves.txt : ").strip()
+            liste_path = input("👉 Entrez le chemin du fichier liste : ").strip()
 
     if not liste_path or not os.path.exists(liste_path):
         print(f"\n❌ Fichier de liste introuvable : '{liste_path}'")
         sys.exit(1)
 
-    # Lecture des élèves
-    with open(liste_path, "r", encoding="utf-8") as f:
-        eleves = [line.strip() for line in f if line.strip()]
+    eleves = parse_student_list(liste_path)
+    if not eleves:
+        print(f"\n❌ Impossible d'extraire la liste d'élèves depuis '{liste_path}'")
+        sys.exit(1)
 
     print(f"✅ Liste chargée : {len(eleves)} élève(s) trouvé(s)\n")
 
@@ -130,8 +193,7 @@ def main():
     # -------------------------------------------------------------------------
     print("---------------------------------------------------------------")
     print("📌 3. DOSSIER DE DESTINATION")
-    print("Où souhaitez-vous enregistrer les fichiers générés ?")
-    print("  [1] Créer un dossier dans le dossier courant (ex: './fichiers_eleves')")
+    print("  [1] Créer un dossier dans le dossier courant ('./fichiers_eleves')")
     print("  [M] Parcourir et choisir un dossier avec le sélecteur macOS")
     
     choix_dossier = input("\n👉 Choix (défaut=1) : ").strip()
@@ -149,24 +211,24 @@ def main():
     print(f"✅ Dossier cible prêt : {os.path.abspath(dossier_cible)}\n")
 
     # -------------------------------------------------------------------------
-    # 4. SUFFIXE / PREFIXE ET FORMATAGE DE NOM
+    # 4. OPTIONS DE FORMATAGE DES NOMS ET CELLULE C3
     # -------------------------------------------------------------------------
     print("---------------------------------------------------------------")
-    print("📌 4. PERSONNALISATION DU NOM DE FICHIER")
-    print("Exemple de nom par défaut : Marie_Curie.xlsx")
-    ajout = input("👉 Souhaitez-vous ajouter du texte (ex: _CM2, _Trimestre1, _2026) ? (Laissez vide pour aucun) : ").strip()
+    print("📌 4. FORMATAGE DU NOM DE FICHIER ET CELLULE C3")
+    print("Format du nom de fichier :")
+    print("  [1] Avec tiret bas '_'  -> 1M4_Abadin_Robert.xlsx (Recommandé)")
+    print("  [2] Avec espaces ' '   -> 1M4 Abadin Robert.xlsx")
+    fmt_choix = input("👉 Choix (défaut=1) : ").strip()
+    separateur = " " if fmt_choix == "2" else "_"
 
-    position = "suffixe"
-    if ajout:
-        print("\nPosition du texte ajouté :")
-        print(f"  [1] À la fin (Suffixe)   -> Marie_Curie{ajout}.xlsx")
-        print(f"  [2] Au début (Préfixe)  -> {ajout}_Marie_Curie.xlsx")
-        pos_choix = input("👉 Choix (défaut=1) : ").strip()
-        if pos_choix == "2":
-            position = "prefixe"
+    print("\nFormat de la cellule C3 :")
+    print("  [1] Prénom Nom (ex: Robert Abadin)")
+    print("  [2] Nom Prénom (ex: Abadin Robert)")
+    c3_choix = input("👉 Choix (défaut=1) : ").strip()
+    c3_format = "nom_prenom" if c3_choix == "2" else "prenom_nom"
 
     # -------------------------------------------------------------------------
-    # 5. RECAPITULATIF ET CONFIRMATION
+    # 5. RÉCAPITULATIF ET CONFIRMATION
     # -------------------------------------------------------------------------
     print("\n===============================================================")
     print("📋 RÉCAPITULATIF DE L'AUTOMATISATION")
@@ -174,18 +236,21 @@ def main():
     print(f" 📄 Template       : {template_path}")
     print(f" 👥 Liste élèves   : {liste_path} ({len(eleves)} élèves)")
     print(f" 📁 Dossier cible  : {os.path.abspath(dossier_cible)}")
+    print(f" ✏️ Cellule C3      : {'Nom Prénom' if c3_format == 'nom_prenom' else 'Prénom Nom'}")
     
     print("\n🔍 Aperçu des premiers fichiers qui vont être créés :")
     exemples = eleves[:3]
     for e in exemples:
-        clean_name = e.replace(' ', '_')
-        if not ajout:
-            nom_f = f"{clean_name}.xlsx"
-        elif position == "prefixe":
-            nom_f = f"{ajout}_{clean_name}.xlsx"
+        nom = e["nom"]
+        prenom = e["prenom"]
+        classe = e["classe"]
+        parts = [p for p in [classe, nom, prenom] if p]
+        if separateur == "_":
+            nom_f = "_".join(parts).replace(" ", "_") + ".xlsx"
         else:
-            nom_f = f"{clean_name}_{ajout}.xlsx"
-        print(f"   • {nom_f}")
+            nom_f = " ".join(parts) + ".xlsx"
+        c3_val = f"{nom} {prenom}" if c3_format == "nom_prenom" else f"{prenom} {nom}"
+        print(f"   • Nom de fichier : {nom_f} | C3 = '{c3_val.strip()}'")
     if len(eleves) > 3:
         print(f"   ... et {len(eleves) - 3} autre(s)")
 
@@ -195,17 +260,26 @@ def main():
     if confirm in ['', 'o', 'oui', 'y', 'yes']:
         print("\n⏳ Traitement en cours...")
         count = 0
-        for eleve in eleves:
-            clean_name = eleve.replace(' ', '_')
-            if not ajout:
-                nom_f = f"{clean_name}.xlsx"
-            elif position == "prefixe":
-                nom_f = f"{ajout}_{clean_name}.xlsx"
+        for e in eleves:
+            nom = e["nom"]
+            prenom = e["prenom"]
+            classe = e["classe"]
+            parts = [p for p in [classe, nom, prenom] if p]
+            
+            if separateur == "_":
+                nom_f = "_".join(parts).replace(" ", "_") + ".xlsx"
             else:
-                nom_f = f"{clean_name}_{ajout}.xlsx"
+                nom_f = " ".join(parts) + ".xlsx"
+                
+            c3_val = f"{nom} {prenom}" if c3_format == "nom_prenom" else f"{prenom} {nom}"
 
             destination = os.path.join(dossier_cible, nom_f)
-            shutil.copyfile(template_path, destination)
+            
+            wb = openpyxl.load_workbook(template_path)
+            ws = wb.active
+            ws['C3'] = c3_val.strip()
+            wb.save(destination)
+            
             count += 1
             print(f"  [OK {count}/{len(eleves)}] {nom_f}")
 

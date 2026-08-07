@@ -1,68 +1,48 @@
 # 🎓 Générateur de Fichiers Élèves (Template Excel)
 
-Un outil simple et efficace pour dupliquer automatiquement un fichier modèle (Template Excel `.xlsx`) pour une liste d'élèves (fournie via un fichier texte `.txt`).
+Un outil automatique pour générer les fichiers d'évaluation Excel individuels par élève à partir d'une liste de classe (`.xlsx` ou `.txt`) et d'un template (`.xlsx`).
 
- Compatible avec **macOS**, **Linux** et **Windows**.
+Compatible avec **macOS**, **Linux** et **Windows**.
 
 ---
 
-## 📁 Structure du projet
+## 🛠️ Fonctionnalités
 
-* **`app_tui.py`** : Interface interactive (TUI) complète et guidée en Python (recommandé).
-* **`dupliquer.py`** : Script Python autonome léger et rapide.
-* **`dupliquer.sh`** : Script Shell / Zsh alternatif pour environnement Unix.
-* **`eleves.txt`** : Fichier exemple contenant la liste des élèves (un nom par ligne).
+* 📂 **Lecture automatique des listes d'élèves** : Supporte les fichiers Excel d'export (extraits avec *Groupe / Classe*, *Nom*, *Prénom*) ou les simples fichiers texte `.txt`.
+* 🏷️ **Nommage personnalisé des fichiers** : Structure au format `[Classe]_[Nom]_[Prénom].xlsx` (ex: `1M4_Arcan_Danny.xlsx`).
+* ✏️ **Mise à jour automatique de la cellule C3** : Remplit la cellule **C3** du template Excel avec le nom complet de l'élève (`Prénom Nom`).
+* 🎨 **Conservation intégrale du style** : Préserve les formules, les couleurs, les bordures et les graphiques du fichier template.
 
 ---
 
 ## 🚀 Utilisation
 
-### 1. Interface Interactive (Recommandé)
+### Option 1 : Lancement rapide (Automatique)
 
-Lancez l'interface guidée dans le terminal :
-
-```bash
-python3 app_tui.py
-```
-
-**Fonctionnalités de l'interface (`app_tui.py`) :**
-* 🔍 Détection automatique des fichiers `.xlsx` et `.txt` dans le dossier courant.
-* 🖥️ Intégration du sélecteur de fichiers/dossiers natif macOS (`osascript`).
-* 📁 Choix d'un dossier de destination personnalisé.
-* 🏷️ Ajout d'un préfixe ou d'un suffixe aux noms de fichiers (ex: `Marie_Curie_CM2.xlsx` ou `2026_Marie_Curie.xlsx`).
-* 📋 Aperçu récapitulatif avant génération.
-
----
-
-### 2. Script Python simple
-
-Pour une exécution rapide basée sur un fichier `template.xlsx` et `eleves.txt` situés dans le même dossier :
+Pour lancer la duplication automatique basée sur le template et la liste présents dans le dossier :
 
 ```bash
 python3 dupliquer.py
 ```
 
+Les 20 fichiers d'élèves seront automatiquement créés dans le dossier `fichiers_eleves/`.
+
 ---
 
-### 3. Script Shell (Bash / Zsh)
+### Option 2 : Interface Interactive (TUI)
 
-Alternative en script shell :
+Pour choisir le template, la liste, le dossier de destination, ainsi que le formatage du nom (avec tiret `_` ou avec espace ` `) et l'ordre dans la cellule C3 :
 
 ```bash
-chmod +x dupliquer.sh
-./dupliquer.sh
+python3 app_tui.py
 ```
 
 ---
 
-## 📝 Format de la liste d'élèves (`eleves.txt`)
+## 📦 Dépendances Python
 
-Créez un fichier texte nommé `eleves.txt` contenant un nom ou prénom d'élève par ligne :
+Ce projet utilise `openpyxl` pour la manipulation des fichiers `.xlsx` :
 
-```text
-Marie Curie
-Albert Einstein
-Isaac Newton
+```bash
+pip install openpyxl
 ```
-
-Les espaces dans les noms seront automatiquement remplacés par des tirets bas (`_`) lors de la création des fichiers.

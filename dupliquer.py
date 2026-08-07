@@ -1,31 +1,148 @@
 #!/usr/bin/env python3
+"""
+Script de duplication automatique de templates Excel par élève.
+- Extrait la liste des élèves (fichier .xlsx ou .txt)
+- Remplit la cellule C3 du template Excel avec "Prénom Nom"
+- Génère les fichiers au format "[Classe]_[Nom]_[Prénom].xlsx"
+"""
+
 import os
-import shutil
+import sys
+import glob
+import openpyxl
 
-# Fichiers de configuration
-TEMPLATE_FILE = "template.xlsx"
-LISTE_FILE = "eleves.txt"
+def find_files():
+    """Détecte automatiquement le fichier template et le fichier de liste."""
+    all_xlsx = glob.glob("*.xlsx")
+    
+    template_file = None
+    liste_file = None
+    
+    for f in all_xlsx:
+        f_lower = f.lower()
+        if "liste" in f_lower:
+            liste_file = f
+        elif "copie" in f_lower or "template" in f_lower:
+            template_file = f
+            
+    if not template_file:
+        for f in all_xlsx:
+            if f != liste_file:
+                template_file = f
+                break
+                
+    if not liste_file and os.path.exists("eleves.txt"):
+        liste_file = "eleves.txt"
+        
+    return template_file, liste_file
 
-def dupliquer_templates():
-    if not os.path.exists(TEMPLATE_FILE):
-        print(f"❌ Erreur : Le fichier template '{TEMPLATE_FILE}' est introuvable.")
-        return
+def parse_student_list(liste_path):
+    """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
+    eleves = []
+    
+    if liste_path.endswith(".xlsx"):
+        wb = openpyxl.load_workbook(liste_path, data_only=True)
+        ws = wb.active
+        
+        header_row = None
+        for r in range(1, 30):
+            vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
+            if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
+                header_row = r
+                break
+                
+        if not header_row:
+            print("❌ Impossible de trouver les en-têtes 'Nom' et 'Prénom' dans la feuille.")
+            return []
+            
+        nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
+        prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
+        group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
+        
+        for r in range(header_row + 1, ws.max_row + 1):
+            nom = ws.cell(row=r, column=nom_c).value
+            prenom = ws.cell(row=r, column=prenom_c).value
+            grp = ws.cell(row=r, column=group_c).value if group_c else ''
+            
+            if nom and prenom:
+                eleves.append({
+                    "nom": str(nom).strip(),
+                    "prenom": str(prenom).strip(),
+                    "classe": str(grp).strip() if grp else ""
+                })
+    else:
+        # Fichier texte
+        with open(liste_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        prenom = parts[0]
+                        nom = " ".join(parts[1:])
+                    else:
+                        prenom = line
+                        nom = ""
+                    eleves.append({"nom": nom, "prenom": prenom, "classe": ""})
+                    
+    return eleves
 
-    if not os.path.exists(LISTE_FILE):
-        print(f"❌ Erreur : Le fichier liste '{LISTE_FILE}' est introuvable.")
-        return
-
-    with open(LISTE_FILE, "r", encoding="utf-8") as f:
-        eleves = [line.strip() for line in f if line.strip()]
-
-    print(f"🚀 Duplication en cours pour {len(eleves)} élève(s)...")
-    for eleve in eleves:
-        # Formater le nom du fichier (remplace les espaces par des underscores)
-        nom_fichier = f"{eleve.replace(' ', '_')}.xlsx"
-        shutil.copyfile(TEMPLATE_FILE, nom_fichier)
-        print(f"  ✅ Créé : {nom_fichier}")
-
-    print("🎉 Terminé avec succès !")
+def main():
+    template_file, liste_file = find_files()
+    
+    if len(sys.argv) > 1:
+        template_file = sys.argv[1]
+    if len(sys.argv) > 2:
+        liste_file = sys.argv[2]
+        
+    print("===============================================================")
+    print(" 🎓 DÉMARRAGE DU SCRIPT DE DUPLICATION EXCEL")
+    print("===============================================================")
+    print(f" 📄 Template       : {template_file}")
+    print(f" 👥 Liste d'élèves : {liste_file}")
+    print("---------------------------------------------------------------")
+    
+    if not template_file or not os.path.exists(template_file):
+        print("❌ Erreur : Fichier template introuvable.")
+        sys.exit(1)
+        
+    if not liste_file or not os.path.exists(liste_file):
+        print("❌ Erreur : Fichier liste d'élèves introuvable.")
+        sys.exit(1)
+        
+    eleves = parse_student_list(liste_file)
+    print(f"✅ {len(eleves)} élève(s) extrait(s) de la liste.\n")
+    
+    output_dir = "fichiers_eleves"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    count = 0
+    for e in eleves:
+        nom = e["nom"]
+        prenom = e["prenom"]
+        classe = e["classe"]
+        
+        # Formater le nom du fichier ex: 1M4_Arcan_Danny.xlsx
+        parts = [p for p in [classe, nom, prenom] if p]
+        nom_fichier = "_".join(parts).replace(" ", "_") + ".xlsx"
+        
+        # Charger le template et modifier la cellule C3
+        wb = openpyxl.load_workbook(template_file)
+        ws = wb.active
+        
+        # Inscrire le prénom et le nom dans la cellule C3
+        ws['C3'] = f"{prenom} {nom}".strip()
+        
+        # Sauvegarder
+        dest_path = os.path.join(output_dir, nom_fichier)
+        wb.save(dest_path)
+        count += 1
+        print(f"  ✅ [{count}/{len(eleves)}] Généré : {nom_fichier} (Cellule C3 = '{ws['C3'].value}')")
+        
+    print("\n===============================================================")
+    print(f"🎉 SUCCÈS ! {count} fichier(s) généré(s) dans le dossier :")
+    print(f"   📁 {os.path.abspath(output_dir)}")
+    print("===============================================================")
 
 if __name__ == "__main__":
-    dupliquer_templates()
+    main()
