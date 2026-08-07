@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 Script de duplication automatique de templates Excel par élève.
-- Extrait la liste des élèves (fichier .xlsx ou .txt)
+- Extrait les listes d'élèves (fichiers .xlsx ou .txt)
 - Remplit la cellule C3 du template Excel avec "Prénom Nom"
 - Génère les fichiers au format "[Classe]_[Nom]_[Prénom].xlsx"
+- Gère le TRAITEMENT PAR LOTS (plusieurs classes en 1 seule exécution)
 """
 
 import os
@@ -47,29 +48,34 @@ def ensure_openpyxl():
 openpyxl = ensure_openpyxl()
 
 def find_files():
-    """Détecte automatiquement le fichier template et le fichier de liste."""
+    """Détecte le template et tous les fichiers de listes de classes disponibles."""
     all_xlsx = glob.glob("*.xlsx")
     
     template_file = None
-    liste_file = None
+    listes_files = []
     
     for f in all_xlsx:
         f_lower = f.lower()
         if "liste" in f_lower:
-            liste_file = f
+            listes_files.append(f)
         elif "copie" in f_lower or "template" in f_lower:
             template_file = f
             
     if not template_file:
         for f in all_xlsx:
-            if f != liste_file:
+            if f not in listes_files:
                 template_file = f
                 break
                 
-    if not liste_file and os.path.exists("eleves.txt"):
-        liste_file = "eleves.txt"
+    if not listes_files:
+        for f in all_xlsx:
+            if f != template_file:
+                listes_files.append(f)
+                
+    if not listes_files and os.path.exists("eleves.txt"):
+        listes_files.append("eleves.txt")
         
-    return template_file, liste_file
+    return template_file, listes_files
 
 def parse_student_list(liste_path):
     """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
@@ -87,7 +93,6 @@ def parse_student_list(liste_path):
                 break
                 
         if not header_row:
-            print("❌ Impossible de trouver les en-têtes 'Nom' et 'Prénom' dans la feuille.")
             return []
             
         nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
@@ -122,56 +127,75 @@ def parse_student_list(liste_path):
     return eleves
 
 def main():
-    template_file, liste_file = find_files()
+    template_file, listes_files = find_files()
     
     if len(sys.argv) > 1:
         template_file = sys.argv[1]
     if len(sys.argv) > 2:
-        liste_file = sys.argv[2]
+        listes_files = sys.argv[2:]
         
     print("===============================================================")
-    print(" 🎓 DÉMARRAGE DU SCRIPT DE DUPLICATION EXCEL")
+    print(" 🎓 DÉMARRAGE DU SCRIPT DE DUPLICATION (MULTI-CLASSES)")
     print("===============================================================")
     print(f" 📄 Template       : {template_file}")
-    print(f" 👥 Liste d'élèves : {liste_file}")
+    print(f" 👥 Listes classes : {len(listes_files)} fichier(s) détecté(s)")
+    for lf in listes_files:
+        print(f"     • {lf}")
     print("---------------------------------------------------------------")
     
     if not template_file or not os.path.exists(template_file):
         print("❌ Erreur : Fichier template introuvable.")
         sys.exit(1)
         
-    if not liste_file or not os.path.exists(liste_file):
-        print("❌ Erreur : Fichier liste d'élèves introuvable.")
+    if not listes_files:
+        print("❌ Erreur : Aucun fichier de liste d'élèves trouvé.")
         sys.exit(1)
-        
-    eleves = parse_student_list(liste_file)
-    print(f"✅ {len(eleves)} élève(s) extrait(s) de la liste.\n")
+
+    parent_dir = "fichiers_eleves"
+    os.makedirs(parent_dir, exist_ok=True)
     
-    output_dir = "fichiers_eleves"
-    os.makedirs(output_dir, exist_ok=True)
+    total_fichiers = 0
     
-    count = 0
-    for e in eleves:
-        nom = e["nom"]
-        prenom = e["prenom"]
-        classe = e["classe"]
+    for liste_file in listes_files:
+        if not os.path.exists(liste_file):
+            print(f"⚠️ Fichier introuvable : '{liste_file}'. Ignoré.")
+            continue
+            
+        eleves = parse_student_list(liste_file)
+        if not eleves:
+            print(f"⚠️ Aucun élève extrait de '{liste_file}'. Ignoré.")
+            continue
+            
+        nom_classe = eleves[0]["classe"] if eleves[0]["classe"] else os.path.splitext(os.path.basename(liste_file))[0]
         
-        parts = [p for p in [classe, nom, prenom] if p]
-        nom_fichier = "_".join(parts).replace(" ", "_") + ".xlsx"
+        target_dir = os.path.join(parent_dir, nom_classe) if len(listes_files) > 1 else parent_dir
+        os.makedirs(target_dir, exist_ok=True)
         
-        wb = openpyxl.load_workbook(template_file)
-        ws = wb.active
+        print(f"\n📂 Classe '{nom_classe}' ({len(eleves)} élèves) -> Dossier: {os.path.abspath(target_dir)}")
         
-        ws['C3'] = f"{prenom} {nom}".strip()
-        
-        dest_path = os.path.join(output_dir, nom_fichier)
-        wb.save(dest_path)
-        count += 1
-        print(f"  ✅ [{count}/{len(eleves)}] Généré : {nom_fichier} (Cellule C3 = '{ws['C3'].value}')")
-        
+        count = 0
+        for e in eleves:
+            nom = e["nom"]
+            prenom = e["prenom"]
+            classe = e["classe"] if e["classe"] else nom_classe
+            
+            parts = [p for p in [classe, nom, prenom] if p]
+            nom_fichier = "_".join(parts).replace(" ", "_") + ".xlsx"
+            
+            wb = openpyxl.load_workbook(template_file)
+            ws = wb.active
+            
+            ws['C3'] = f"{prenom} {nom}".strip()
+            
+            dest_path = os.path.join(target_dir, nom_fichier)
+            wb.save(dest_path)
+            count += 1
+            total_fichiers += 1
+            print(f"  ✅ [{count}/{len(eleves)}] Généré : {nom_fichier} (Cellule C3 = '{ws['C3'].value}')")
+            
     print("\n===============================================================")
-    print(f"🎉 SUCCÈS ! {count} fichier(s) généré(s) dans le dossier :")
-    print(f"   📁 {os.path.abspath(output_dir)}")
+    print(f"🎉 SUCCÈS ! {total_fichiers} fichier(s) généré(s) pour {len(listes_files)} classe(s) !")
+    print(f"📁 Localisation : {os.path.abspath(parent_dir)}")
     print("===============================================================")
 
 if __name__ == "__main__":

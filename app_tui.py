@@ -4,8 +4,9 @@ Générateur de Fichiers Élèves - Interface Terminal (TUI)
 Compatible macOS / Linux / Windows
 
 Fonctionnalités avancées :
+- Traitement PAR LOTS (Multi-classes) : traitez 5 listes de classe d'un coup en 1 seul clic !
 - Contrôle strict des saisies utilisateur (boucle d'erreur en cas d'entrée invalide)
-- Gestionnaire de sélection MULTIPLE de dossiers de destination avec navigateur
+- Organisation automatique des sous-dossiers par classe
 """
 
 import os
@@ -54,7 +55,6 @@ def clear_screen():
 def get_valid_input(prompt_text, valid_options, default=None):
     """
     Demande une saisie à l'utilisateur et boucle tant que la réponse n'est pas valide.
-    valid_options: liste de chaînes (ex: ['1', '2', 'M', 'S'])
     """
     valid_upper = [str(o).upper() for o in valid_options]
     while True:
@@ -106,7 +106,6 @@ def parse_student_list(liste_path):
                 break
                 
         if not header_row:
-            print("❌ En-têtes 'Nom' et 'Prénom' introuvables dans le fichier Excel.")
             return []
             
         nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
@@ -140,101 +139,48 @@ def parse_student_list(liste_path):
                     
     return eleves
 
-def multi_folder_browser():
-    """
-    Navigateur interactif permettant de parcourir les sous-dossiers,
-    d'en créer et de cocher/décocher plusieurs dossiers de destination.
-    """
-    current_dir = os.getcwd()
-    selected_folders = set()
+def multi_list_selector(fichiers_dispos):
+    """Permet de cocher/décocher plusieurs fichiers de listes d'élèves pour un traitement par lots."""
+    selected_indices = set(range(1, len(fichiers_dispos) + 1))  # Tout cocher par défaut
     
-    # Par défaut, ajouter './fichiers_eleves'
-    default_target = os.path.abspath("fichiers_eleves")
-    selected_folders.add(default_target)
-
     while True:
         clear_screen()
         print("===============================================================")
-        print(" 📁 NAVIGATEUR ET SÉLECTION MULTIPLE DE DOSSIERS CIBLES")
+        print(" 👥 SÉLECTION MULTIPLE DE LISTES DE CLASSES (Traitement par lots)")
         print("===============================================================")
-        print(f"📍 Dossier actuel de navigation : {current_dir}\n")
+        print("Cochez les fichiers de classe que vous souhaitez traiter :\n")
         
-        print("🎯 Dossier(s) actuellement sélectionné(s) pour la génération :")
-        if not selected_folders:
-            print("   (Aucun dossier sélectionné !)")
-        else:
-            for sf in sorted(selected_folders):
-                print(f"   [✓] {sf}")
-        print("---------------------------------------------------------------")
-        
-        # Lister les sous-dossiers dans current_dir
-        try:
-            entries = sorted([d for d in os.listdir(current_dir) if os.path.isdir(os.path.join(current_dir, d)) and not d.startswith('.')])
-        except PermissionError:
-            entries = []
-            print("⚠️ Accès refusé à ce dossier.")
-
-        print("\nSous-dossiers disponibles :")
-        print("  [..] ⬆️  Remonter d'un dossier parent")
-        print("  [+]  ➕ Créer un nouveau sous-dossier ici")
-        if sys.platform == "darwin":
-            print("  [M]  🖥️  Ajouter un dossier via le sélecteur macOS")
-        print("  [OK] 🚀 VALIDER LA SÉLECTION et continuer")
-        print("")
-        
-        dir_map = {}
-        for idx, folder_name in enumerate(entries, 1):
-            full_path = os.path.abspath(os.path.join(current_dir, folder_name))
-            isChecked = "✓" if full_path in selected_folders else " "
-            print(f"  [{idx}] [{isChecked}] 📂 {folder_name}")
-            dir_map[str(idx)] = (folder_name, full_path)
+        for idx, f in enumerate(fichiers_dispos, 1):
+            isChecked = "✓" if idx in selected_indices else " "
+            print(f"  [{idx}] [{isChecked}] 📄 {f}")
             
-        print("\nCommandes possibles :")
-        print("  • Tapez un N° pour entrer dans un sous-dossier (ex: 1)")
-        print("  • Tapez C<N°> pour Cocher/Décocher un dossier (ex: C1 pour cocher/décocher le dossier 1)")
-        print("  • Tapez 'OK' pour terminer la sélection.")
+        print("\nOptions :")
+        print("  • Tapez un N° pour Cocher/Décocher (ex: 1)")
+        print("  • Tapez 'A' pour Tout cocher")
+        print("  • Tapez 'N' pour Tout décocher")
+        print("  • Tapez 'OK' pour Valider la sélection ({0} classe(s) sélectionnée(s))".format(len(selected_indices)))
         
-        cmd = input("\n👉 Votre choix : ").strip().upper()
+        cmd = input("\n👉 Choix : ").strip().upper()
         
         if cmd == 'OK':
-            if not selected_folders:
-                print("❌ Veuillez sélectionner au moins un dossier de destination !")
+            if not selected_indices:
+                print("❌ Veuillez sélectionner au moins une liste de classe !")
                 input("Appuyez sur Entrée pour continuer...")
                 continue
-            return list(selected_folders)
-        elif cmd == '..':
-            parent = os.path.dirname(current_dir)
-            if parent and parent != current_dir:
-                current_dir = parent
-        elif cmd == '+':
-            new_name = input("👉 Nom du nouveau sous-dossier : ").strip()
-            if new_name:
-                new_path = os.path.join(current_dir, new_name)
-                os.makedirs(new_path, exist_ok=True)
-                selected_folders.add(os.path.abspath(new_path))
-                print(f"✅ Dossier créé et sélectionné : {new_path}")
-        elif cmd == 'M' and sys.platform == "darwin":
-            mac_folder = get_native_folder_picker("Choisir un dossier de destination")
-            if mac_folder:
-                selected_folders.add(os.path.abspath(mac_folder))
-        elif cmd.startswith('C') and cmd[1:].isdigit():
-            idx_str = cmd[1:]
-            if idx_str in dir_map:
-                _, full_p = dir_map[idx_str]
-                if full_p in selected_folders:
-                    selected_folders.remove(full_p)
-                else:
-                    selected_folders.add(full_p)
+            return [fichiers_dispos[i - 1] for i in sorted(selected_indices)]
+        elif cmd == 'A':
+            selected_indices = set(range(1, len(fichiers_dispos) + 1))
+        elif cmd == 'N':
+            selected_indices.clear()
+        elif cmd.isdigit() and 1 <= int(cmd) <= len(fichiers_dispos):
+            idx = int(cmd)
+            if idx in selected_indices:
+                selected_indices.remove(idx)
             else:
-                print(f"❌ Numéro de dossier invalide : {idx_str}")
-                input("Appuyez sur Entrée...")
-        elif cmd in dir_map:
-            # Naviguer dans le sous-dossier
-            _, full_p = dir_map[cmd]
-            current_dir = full_p
+                selected_indices.add(idx)
         else:
             print(f"❌ Commande non reconnue : '{cmd}'")
-            input("Appuyez sur Entrée pour réessayer...")
+            input("Appuyez sur Entrée...")
 
 def main():
     clear_screen()
@@ -289,92 +235,94 @@ def main():
     print(f"✅ Template sélectionné : {template_path}\n")
 
     # -------------------------------------------------------------------------
-    # 2. SÉLECTION DE LA LISTE DES ÉLÈVES (.xlsx ou .txt)
+    # 2. SÉLECTION DES LISTES DE CLASSES (.xlsx ou .txt)
     # -------------------------------------------------------------------------
     print("---------------------------------------------------------------")
-    print("📌 2. LISTE DES ÉLÈVES (.xlsx ou .txt)")
-    fichiers_liste = glob.glob("*.xlsx") + glob.glob("*.txt")
-    liste_path = ""
+    print("📌 2. SÉLECTION DE LA OU DES LISTES D'ÉLÈVES")
+    fichiers_liste = [f for f in glob.glob("*.xlsx") + glob.glob("*.txt") if f != template_path]
+    listes_selectionnees = []
 
     if fichiers_liste:
-        print("Fichiers trouvés dans le dossier actuel :")
-        valid_opts_l = []
-        def_idx_l = 1
-        for idx, f in enumerate(fichiers_liste, 1):
-            print(f"  [{idx}] {f}")
-            valid_opts_l.append(str(idx))
-            if "liste" in f.lower() or f == "eleves.txt":
-                def_idx_l = idx
-
+        print("  [1] Sélectionner UN SEUL fichier de liste")
+        print(f"  [2] TRAITEMENT PAR LOTS (Multi-classes) -> Choisir parmi {len(fichiers_liste)} fichier(s)")
         if sys.platform == "darwin":
-            print("  [M] Ouvrir le sélecteur macOS")
-            valid_opts_l.append("M")
+            print("  [M] Sélecteur macOS")
         print("  [S] Saisir le chemin manuellement")
-        valid_opts_l.append("S")
-
-        choix = get_valid_input(f"\n👉 Choix (défaut={def_idx_l}) : ", valid_opts_l, default=def_idx_l)
         
-        if choix == 'M':
-            liste_path = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
-        elif choix == 'S':
-            while True:
-                liste_path = input("Chemin du fichier liste : ").strip()
-                if liste_path and os.path.exists(liste_path):
-                    break
-                print(f"❌ Fichier introuvable : '{liste_path}'. Réessayez.")
-        else:
-            liste_path = fichiers_liste[int(choix) - 1]
-    else:
+        opts = ["1", "2", "S"]
         if sys.platform == "darwin":
-            liste_path = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
-        while not liste_path or not os.path.exists(liste_path):
-            liste_path = input("👉 Entrez le chemin du fichier liste : ").strip()
-            if not os.path.exists(liste_path):
-                print(f"❌ Fichier introuvable : '{liste_path}'")
+            opts.append("M")
 
-    eleves = parse_student_list(liste_path)
-    while not eleves:
-        print(f"\n❌ Impossible d'extraire des élèves depuis '{liste_path}'. Veuillez choisir un autre fichier.")
-        liste_path = input("👉 Chemin du fichier liste : ").strip()
-        if os.path.exists(liste_path):
-            eleves = parse_student_list(liste_path)
+        mode_l = get_valid_input("\n👉 Mode de sélection (défaut=1) : ", opts, default="1")
+        
+        if mode_l == "2":
+            listes_selectionnees = multi_list_selector(fichiers_liste)
+        elif mode_l == "M":
+            f_mac = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
+            if f_mac:
+                listes_selectionnees = [f_mac]
+        elif mode_l == "S":
+            while True:
+                f_s = input("Chemin du fichier liste : ").strip()
+                if f_s and os.path.exists(f_s):
+                    listes_selectionnees = [f_s]
+                    break
+                print(f"❌ Fichier introuvable : '{f_s}'. Réessayez.")
+        else:
+            print("\nFichiers trouvés :")
+            v_opts = []
+            def_l = 1
+            for idx, f in enumerate(fichiers_liste, 1):
+                print(f"  [{idx}] {f}")
+                v_opts.append(str(idx))
+                if "liste" in f.lower() or f == "eleves.txt":
+                    def_l = idx
+            ch_l = get_valid_input(f"\n👉 Choix du fichier (défaut={def_l}) : ", v_opts, default=def_l)
+            listes_selectionnees = [fichiers_liste[int(ch_l) - 1]]
+    else:
+        print("Aucune liste d'élèves trouvée dans le dossier.")
+        if sys.platform == "darwin":
+            f_mac = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
+            if f_mac:
+                listes_selectionnees = [f_mac]
+        while not listes_selectionnees:
+            f_s = input("👉 Entrez le chemin du fichier liste : ").strip()
+            if os.path.exists(f_s):
+                listes_selectionnees = [f_s]
 
-    print(f"✅ Liste chargée : {len(eleves)} élève(s) trouvé(s)\n")
+    print(f"\n✅ {len(listes_selectionnees)} fichier(s) de classe retenu(s) pour le traitement :\n")
+    for f in listes_selectionnees:
+        print(f"   • {f}")
 
     # -------------------------------------------------------------------------
-    # 3. DOSSIERS CIBLES DE DESTINATION (SIMPLE OU MULTIPLE)
+    # 3. ORGANISATION DES DOSSIERS DE DESTINATION
     # -------------------------------------------------------------------------
-    print("---------------------------------------------------------------")
-    print("📌 3. DOSSIER(S) DE DESTINATION")
-    print("  [1] Dossier unique par défaut ('./fichiers_eleves')")
-    print("  [2] Sélection multiple de dossiers & Navigateur (Générer dans plusieurs dossiers)")
+    print("\n---------------------------------------------------------------")
+    print("📌 3. DOSSIER PARENT DE DESTINATION")
+    print("Où souhaitez-vous enregistrer les fichiers générés ?")
+    print("  [1] Dossier './fichiers_eleves' (Créera automatiquement un sous-dossier par classe si multi-classes)")
+    print("  [2] Dossier personnalisé")
     if sys.platform == "darwin":
-        print("  [M] Choisir un dossier avec le sélecteur macOS")
+        print("  [M] Parcourir avec le sélecteur macOS")
 
     opts_d = ["1", "2"]
     if sys.platform == "darwin":
         opts_d.append("M")
 
-    choix_dossier = get_valid_input("\n👉 Choix (défaut=1) : ", opts_d, default="1")
-    dossiers_cibles = []
+    choix_d = get_valid_input("\n👉 Choix (défaut=1) : ", opts_d, default="1")
+    dossier_parent = "fichiers_eleves"
 
-    if choix_dossier == '2':
-        dossiers_cibles = multi_folder_browser()
-    elif choix_dossier == 'M':
-        mac_folder = get_native_folder_picker("Sélectionnez le dossier de destination")
-        if mac_folder:
-            dossiers_cibles = [os.path.abspath(mac_folder)]
-        else:
-            dossiers_cibles = [os.path.abspath("fichiers_eleves")]
-    else:
-        nom_defaut = "fichiers_eleves"
-        saisie = input(f"Nom du dossier à créer/utiliser (défaut='{nom_defaut}') : ").strip()
-        dossiers_cibles = [os.path.abspath(saisie if saisie else nom_defaut)]
+    if choix_d == "2":
+        s = input("Entrez le nom/chemin du dossier parent : ").strip()
+        if s:
+            dossier_parent = s
+    elif choix_d == "M":
+        mac_d = get_native_folder_picker("Sélectionnez le dossier parent de destination")
+        if mac_d:
+            dossier_parent = mac_d
 
-    for d in dossiers_cibles:
-        os.makedirs(d, exist_ok=True)
-    
-    print(f"✅ {len(dossiers_cibles)} dossier(s) cible(s) prêt(s)\n")
+    os.makedirs(dossier_parent, exist_ok=True)
+    print(f"✅ Dossier parent prêt : {os.path.abspath(dossier_parent)}\n")
 
     # -------------------------------------------------------------------------
     # 4. OPTIONS DE FORMATAGE DES NOMS ET CELLULE C3
@@ -400,38 +348,43 @@ def main():
     print("📋 RÉCAPITULATIF DE L'AUTOMATISATION")
     print("===============================================================")
     print(f" 📄 Template       : {template_path}")
-    print(f" 👥 Liste élèves   : {liste_path} ({len(eleves)} élèves)")
-    print(f" 📁 Dossier(s) ({len(dossiers_cibles)}) :")
-    for d in dossiers_cibles:
-        print(f"     • {d}")
+    print(f" 👥 Listes classes : {len(listes_selectionnees)} fichier(s) sélectionné(s)")
+    for f in listes_selectionnees:
+        print(f"     • {f}")
+    print(f" 📁 Dossier Parent : {os.path.abspath(dossier_parent)}")
     print(f" ✏️ Cellule C3      : {'Nom Prénom' if c3_format == 'nom_prenom' else 'Prénom Nom'}")
-    
-    print("\n🔍 Aperçu des premiers fichiers qui vont être créés :")
-    exemples = eleves[:3]
-    for e in exemples:
-        nom = e["nom"]
-        prenom = e["prenom"]
-        classe = e["classe"]
-        parts = [p for p in [classe, nom, prenom] if p]
-        nom_f = ("_".join(parts).replace(" ", "_") if separateur == "_" else " ".join(parts)) + ".xlsx"
-        c3_val = f"{nom} {prenom}" if c3_format == "nom_prenom" else f"{prenom} {nom}"
-        print(f"   • Nom de fichier : {nom_f} | C3 = '{c3_val.strip()}'")
-    if len(eleves) > 3:
-        print(f"   ... et {len(eleves) - 3} autre(s)")
-
     print("===============================================================")
-    confirm = get_valid_input("\n🚀 Lancer la génération ? [O/N] : ", ["O", "N", "OUI", "NON", "Y", "YES"], default="O")
+    
+    confirm = get_valid_input("\n🚀 Lancer la génération pour TOUTES les classes ? [O/N] : ", ["O", "N", "OUI", "NON", "Y", "YES"], default="O")
 
     if confirm in ['O', 'OUI', 'Y', 'YES']:
         print("\n⏳ Traitement en cours...")
-        total_files = 0
-        for target_dir in dossiers_cibles:
-            print(f"\n📂 Enregistrement dans : {target_dir}")
+        total_eleves = 0
+        total_fichiers = 0
+
+        for liste_file in listes_selectionnees:
+            eleves = parse_student_list(liste_file)
+            if not eleves:
+                print(f"\n⚠️ Aucun élève trouvé dans '{liste_file}'. Fichier ignoré.")
+                continue
+
+            # Déterminer le nom de la classe
+            nom_classe = eleves[0]["classe"] if eleves[0]["classe"] else os.path.splitext(os.path.basename(liste_file))[0]
+            
+            # Si multi-classes, créer un sous-dossier par classe
+            if len(listes_selectionnees) > 1:
+                target_dir = os.path.join(dossier_parent, nom_classe)
+            else:
+                target_dir = dossier_parent
+
+            os.makedirs(target_dir, exist_ok=True)
+            print(f"\n📂 Classe '{nom_classe}' ({len(eleves)} élèves) -> Dossier: {os.path.abspath(target_dir)}")
+
             count = 0
             for e in eleves:
                 nom = e["nom"]
                 prenom = e["prenom"]
-                classe = e["classe"]
+                classe = e["classe"] if e["classe"] else nom_classe
                 parts = [p for p in [classe, nom, prenom] if p]
                 
                 nom_f = ("_".join(parts).replace(" ", "_") if separateur == "_" else " ".join(parts)) + ".xlsx"
@@ -445,10 +398,12 @@ def main():
                 wb.save(destination)
                 
                 count += 1
-                total_files += 1
+                total_eleves += 1
+                total_fichiers += 1
                 print(f"  [OK {count}/{len(eleves)}] {nom_f}")
 
-        print(f"\n🎉 SUCCÈS ! {total_files} fichier(s) généré(s) à travers {len(dossiers_cibles)} dossier(s) !")
+        print(f"\n🎉 SUCCÈS TOTAL ! {total_fichiers} fichier(s) généré(s) pour {len(listes_selectionnees)} classe(s) !")
+        print(f"📁 Localisation : {os.path.abspath(dossier_parent)}")
     else:
         print("\n❌ Opération annulée.")
 
