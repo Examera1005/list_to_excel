@@ -1,39 +1,68 @@
 # 🎓 Générateur de Fichiers Élèves (Template Excel)
 
-Un outil en Python pour générer automatiquement les fichiers d'évaluation Excel individuels par élève à partir de vos listes de classes (`.xlsx` ou `.txt`) et d'un template modèle (`.xlsx`).
+Un outil automatique et élégant en Python pour générer les fichiers d'évaluation Excel individuels par élève à partir de vos listes de classes (`.xlsx` ou `.txt`) et d'un fichier modèle (`.xlsx`).
 
 Compatible avec **macOS** et **Linux**.
 
 ---
 
-## ✨ Nouveautés & Fonctionnalités clés
+## 📁 Structure du projet
 
-* 🎯 **Suppression ciblée (`Supprimer la sélection`)** : Supprimez uniquement les classes sélectionnées dans la liste sans devoir tout effacer.
-* 🔍 **Recherche dynamique FZF (`🔍 Filtrer...`)** : Filtrez instantanément vos listes de classes en tapant leur nom comme dans `fzf`.
-* ⌨️ **Autocomplétion de chemins Zsh/Fish (`Tab`)** : Autocomplétion automatique des fichiers et dossiers lors de la saisie au clavier (`QCompleter` / `readline`).
-* 🍏 **Application macOS Natif (`Générateur Élèves.app`)** : Double-cliquable dans le Finder sans ouvrir le terminal (`python3 build_mac_app.py`).
-* 🎨 **Design Zinc & Violet Minimaliste** : Haute lisibilité, fort contraste et palette sombre épurée.
+* **`app_gui.py`** : Interface graphique moderne Zinc & Violet (PySide6 avec fallback Tkinter).
+* **`build_mac_app.py`** : Générateur d’application native macOS (`.app`) double-cliquable dans le Finder.
+* **`app_tui.py`** : Interface interactive dans le terminal (Sélecteur à flèches + Espace).
+* **`dupliquer.py`** : Script Python de traitement par lots autonome.
+* **`template.xlsx`** : Exemple de fichier modèle Excel.
+* **`liste_eleves_1M1.xlsx`** : Exemple de liste d'élèves pour la classe **1M1**.
+* **`liste_eleves_1M2.xlsx`** : Exemple de liste d'élèves pour la classe **1M2**.
 
 ---
 
-## 🎨 Options d'utilisation
+## ✨ Fonctionnalités clés
 
-### 1. Interface Graphique (GUI Moderne) - *Recommandé*
+* 🚀 **Traitement par lots Multi-classes (Batch Mode)** : Traitez plusieurs classes en une seule exécution avec création automatique de sous-dossiers par classe (ex: `./fichiers_eleves/1M1/`, `./fichiers_eleves/1M2/`).
+* 🍏 **Application Mac Natif (`.app`)** : Génère `Générateur Élèves.app` utilisable au double-clic dans le Finder sans ouvrir le terminal.
+* 🔍 **Recherche et filtre type FZF (`🔍 Filtrer...`)** : Filtrez instantanément vos listes de classes en tapant leur nom.
+* ⌨️ **Autocomplétion Zsh / Fish (`Tab`)** : Complétion automatique des chemins de fichiers et dossiers dans les champs de saisie.
+* 🎯 **Suppression ciblée (`Supprimer sélection`)** : Retirez uniquement les éléments sélectionnés sans tout effacer.
+* 🎨 **Design Zinc & Violet Minimaliste** : Style sombre épuré haute lisibilité, fort contraste, boutons réactifs et effets au survol (Hover).
+* 🛡️ **Tolérance aux pannes & Auto-installation** : Gestion des fichiers texte nommés `.xlsx` créés via `nano` et auto-installation des dépendances (`openpyxl`, `PySide6`).
+
+---
+
+## 🚀 Guide d'utilisation
+
+### 1. Application macOS Natif (Recommandé sur Mac)
+
+Pour créer l'application Mac double-cliquable dans le Finder :
+
+```bash
+python3 build_mac_app.py
+```
+
+Vous obtiendrez le fichier **`Générateur Élèves.app`**. Double-cliquez dessus dans le Finder pour lancer l'application !
+
+---
+
+### 2. Interface Graphique (GUI)
+
+Pour exécuter l'interface graphique directement :
 
 ```bash
 python3 app_gui.py
 ```
 
-### 2. Application Mac dédiée (.app)
+#### Lancement détaché du terminal :
+Si vous voulez fermer le terminal tout en gardant l'application ouverte :
 
-```bash
-python3 build_mac_app.py
-```
-*(Crée `Générateur Élèves.app` directement double-cliquable dans le Finder).*
+* Sur Mac : `open "Générateur Élèves.app"`
+* Sur Linux / Mac : `nohup python3 app_gui.py > /dev/null 2>&1 &`
 
 ---
 
 ### 3. Interface Terminal Interactive (TUI)
+
+Pour utiliser le menu interactif dans le terminal :
 
 ```bash
 python3 app_tui.py
@@ -41,7 +70,9 @@ python3 app_tui.py
 
 ---
 
-### 4. Script CLI Rapide
+### 4. Mode automatique (Script CLI)
+
+Pour exécuter la génération en ligne de commande :
 
 ```bash
 python3 dupliquer.py
