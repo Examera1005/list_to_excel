@@ -6,27 +6,34 @@ Compatible avec **macOS** et **Linux**.
 
 ---
 
-## 🎨 Options d'utilisation
+## 🍏 Application Natif Mac (Double-cliquable dans le Finder)
 
-### 1. Interface Graphique (GUI Moderne) - *Recommandé*
+Vous pouvez générer une vraie application Mac `.app` que vous pouvez poser sur votre **Bureau** ou dans votre dossier **Applications** :
 
-Une interface fenêtre sombre, élégante et très légère (~30 Mo RAM) :
+1. Dans le terminal, exécutez la commande suivante **une seule fois** :
+   ```bash
+   python3 build_mac_app.py
+   ```
+2. Un fichier **`Générateur Élèves.app`** est automatiquement créé !
+3. Vous pouvez désormais **double-cliquer dessus directement dans le Finder** sans jamais avoir à ouvrir le terminal !
+
+---
+
+## 🎨 Modes d'utilisation
+
+### 1. Interface Graphique (GUI Moderne)
 
 ```bash
 python3 app_gui.py
 ```
 
-**Fonctionnalités de l'interface GUI :**
-* 📁 **Sélecteur natif Finder (macOS) / Explorateur (Linux)** : Ouvrez la fenêtre système de votre système d'exploitation pour sélectionner directement une ou **plusieurs listes d'élèves en même temps** (Cmd + Clic / Maj + Clic / Glisser-déposer).
-* ✨ **Design sombre & effets Hover** : Boutons réactifs et modernes.
-* ⚡ **Traitement asynchrone** : Barre de progression et journal en direct sans aucun ralentissement.
-* 🛠️ **Installation automatique** : Détecte et propose d'installer `PySide6` si la dépendance est manquante.
+* 📁 **Sélecteur natif Finder / Explorateur** : Sélection multiple de fichiers avec Cmd + Clic / Maj + Clic.
+* ✨ **Design sombre Zinc & Violet Minimaliste** : Forte lisibilité et contrastes soignés.
+* ⚡ **Traitement asynchrone** : Journal et barre de progression en temps réel.
 
 ---
 
 ### 2. Interface Terminal Interactive (TUI)
-
-Un menu interactif guidé dans le terminal avec sélecteur à flèches `⬆️` / `⬇️` et touche `ESPACE` :
 
 ```bash
 python3 app_tui.py
@@ -36,19 +43,6 @@ python3 app_tui.py
 
 ### 3. Script CLI Rapide
 
-Pour exécuter la génération automatique directement depuis la ligne de commande :
-
 ```bash
 python3 dupliquer.py
 ```
-
----
-
-## 📁 Structure du projet
-
-* **`app_gui.py`** : Interface graphique fenêtre (GUI PySide6 / Qt).
-* **`app_tui.py`** : Interface interactive dans le terminal (TUI).
-* **`dupliquer.py`** : Script Python de traitement autonome.
-* **`template.xlsx`** : Exemple de fichier modèle Excel.
-* **`liste_eleves_1M1.xlsx`** : Exemple de liste d'élèves pour la classe **1M1**.
-* **`liste_eleves_1M2.xlsx`** : Exemple de liste d'élèves pour la classe **1M2**.
