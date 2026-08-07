@@ -5,6 +5,7 @@ Script de duplication automatique de templates Excel par élève.
 - Remplit la cellule C3 du template Excel avec "Prénom Nom"
 - Génère les fichiers au format "[Classe]_[Nom]_[Prénom].xlsx"
 - Gère le TRAITEMENT PAR LOTS (plusieurs classes en 1 seule exécution)
+- Gère le fallback si un fichier texte est nommé .xlsx (ex: créé avec nano)
 """
 
 import os
@@ -51,70 +52,64 @@ def find_files():
     """Détecte le template et tous les fichiers de listes de classes disponibles."""
     all_xlsx = glob.glob("*.xlsx")
     
-    template_file = None
-    listes_files = []
-    
+    vrais_templates = []
     for f in all_xlsx:
-        f_lower = f.lower()
-        if "liste" in f_lower:
-            listes_files.append(f)
-        elif "copie" in f_lower or "template" in f_lower:
-            template_file = f
-            
-    if not template_file:
-        for f in all_xlsx:
-            if f not in listes_files:
-                template_file = f
-                break
-                
-    if not listes_files:
-        for f in all_xlsx:
-            if f != template_file:
-                listes_files.append(f)
-                
-    if not listes_files and os.path.exists("eleves.txt"):
-        listes_files.append("eleves.txt")
-        
+        try:
+            wb_t = openpyxl.load_workbook(f, read_only=True)
+            wb_t.close()
+            vrais_templates.append(f)
+        except Exception:
+            pass
+
+    template_file = vrais_templates[0] if vrais_templates else None
+    listes_files = [f for f in glob.glob("*.xlsx") + glob.glob("*.txt") if f != template_file]
+    
     return template_file, listes_files
 
 def parse_student_list(liste_path):
-    """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
+    """
+    Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt).
+    Bascule automatiquement sur la lecture texte si un fichier créé avec nano porte l'extension .xlsx.
+    """
     eleves = []
     
     if liste_path.endswith(".xlsx"):
-        wb = openpyxl.load_workbook(liste_path, data_only=True)
-        ws = wb.active
-        
-        header_row = None
-        for r in range(1, 30):
-            vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
-            if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
-                header_row = r
-                break
+        try:
+            wb = openpyxl.load_workbook(liste_path, data_only=True)
+            ws = wb.active
+            
+            header_row = None
+            for r in range(1, 30):
+                vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
+                if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
+                    header_row = r
+                    break
+                    
+            if header_row:
+                nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
+                prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
+                group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
                 
-        if not header_row:
-            return []
-            
-        nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
-        prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
-        group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
-        
-        for r in range(header_row + 1, ws.max_row + 1):
-            nom = ws.cell(row=r, column=nom_c).value
-            prenom = ws.cell(row=r, column=prenom_c).value
-            grp = ws.cell(row=r, column=group_c).value if group_c else ''
-            
-            if nom and prenom:
-                eleves.append({
-                    "nom": str(nom).strip(),
-                    "prenom": str(prenom).strip(),
-                    "classe": str(grp).strip() if grp else ""
-                })
-    else:
-        with open(liste_path, "r", encoding="utf-8") as f:
+                for r in range(header_row + 1, ws.max_row + 1):
+                    nom = ws.cell(row=r, column=nom_c).value
+                    prenom = ws.cell(row=r, column=prenom_c).value
+                    grp = ws.cell(row=r, column=group_c).value if group_c else ''
+                    
+                    if nom and prenom:
+                        eleves.append({
+                            "nom": str(nom).strip(),
+                            "prenom": str(prenom).strip(),
+                            "classe": str(grp).strip() if grp else ""
+                        })
+                return eleves
+        except Exception:
+            pass
+
+    try:
+        with open(liste_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
-                if line:
+                if line and not line.startswith('#'):
                     parts = line.split()
                     if len(parts) >= 2:
                         prenom = parts[0]
@@ -123,7 +118,9 @@ def parse_student_list(liste_path):
                         prenom = line
                         nom = ""
                     eleves.append({"nom": nom, "prenom": prenom, "classe": ""})
-                    
+    except Exception as err:
+        print(f"⚠️ Impossible de lire le fichier '{liste_path}' : {err}")
+        
     return eleves
 
 def main():

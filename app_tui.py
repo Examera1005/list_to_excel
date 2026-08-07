@@ -6,6 +6,7 @@ Compatible macOS / Linux / Windows
 Fonctionnalités avancées :
 - Sélecteur interactif fluide (Flèches HAUT/BAS + Touche ESPACE pour cocher/décocher)
 - Traitement PAR LOTS (Multi-classes) en 1 seul clic
+- Gestion robuste des erreurs (fichiers texte nommés .xlsx créés avec nano)
 - Contrôle strict des saisies utilisateur (boucle d'erreur en cas d'entrée invalide)
 - Organisation automatique des sous-dossiers par classe
 """
@@ -166,43 +167,52 @@ def interactive_checkbox_selector(items, title="SÉLECTION DES CLASSES"):
             return selected
 
 def parse_student_list(liste_path):
-    """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
+    """
+    Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt).
+    Gère automatiquement le fallback vers le texte si un fichier créé avec nano a une extension .xlsx.
+    """
     eleves = []
     
+    # 1. Tenter la lecture comme fichier Excel (.xlsx)
     if liste_path.endswith(".xlsx"):
-        wb = openpyxl.load_workbook(liste_path, data_only=True)
-        ws = wb.active
-        
-        header_row = None
-        for r in range(1, 30):
-            vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
-            if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
-                header_row = r
-                break
+        try:
+            wb = openpyxl.load_workbook(liste_path, data_only=True)
+            ws = wb.active
+            
+            header_row = None
+            for r in range(1, 30):
+                vals = [str(ws.cell(row=r, column=c).value or '').strip() for c in range(1, 15)]
+                if 'Nom' in vals and ('Prénom' in vals or 'Prenom' in vals):
+                    header_row = r
+                    break
+                    
+            if header_row:
+                nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
+                prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
+                group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
                 
-        if not header_row:
-            return []
-            
-        nom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() == 'nom')
-        prenom_c = next(c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['prénom', 'prenom'])
-        group_c = next((c for c in range(1, 15) if str(ws.cell(row=header_row, column=c).value).strip().lower() in ['groupe', 'classe']), None)
-        
-        for r in range(header_row + 1, ws.max_row + 1):
-            nom = ws.cell(row=r, column=nom_c).value
-            prenom = ws.cell(row=r, column=prenom_c).value
-            grp = ws.cell(row=r, column=group_c).value if group_c else ''
-            
-            if nom and prenom:
-                eleves.append({
-                    "nom": str(nom).strip(),
-                    "prenom": str(prenom).strip(),
-                    "classe": str(grp).strip() if grp else ""
-                })
-    else:
-        with open(liste_path, "r", encoding="utf-8") as f:
+                for r in range(header_row + 1, ws.max_row + 1):
+                    nom = ws.cell(row=r, column=nom_c).value
+                    prenom = ws.cell(row=r, column=prenom_c).value
+                    grp = ws.cell(row=r, column=group_c).value if group_c else ''
+                    
+                    if nom and prenom:
+                        eleves.append({
+                            "nom": str(nom).strip(),
+                            "prenom": str(prenom).strip(),
+                            "classe": str(grp).strip() if grp else ""
+                        })
+                return eleves
+        except Exception:
+            # Si le fichier n'est pas un binaire Excel valide (ex: fichier texte nommé .xlsx créé avec nano)
+            pass
+
+    # 2. Fallback / Lecture comme fichier Texte brut (.txt ou fichier texte .xlsx)
+    try:
+        with open(liste_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
-                if line:
+                if line and not line.startswith("#"):
                     parts = line.split()
                     if len(parts) >= 2:
                         prenom = parts[0]
@@ -211,7 +221,9 @@ def parse_student_list(liste_path):
                         prenom = line
                         nom = ""
                     eleves.append({"nom": nom, "prenom": prenom, "classe": ""})
-                    
+    except Exception as err:
+        print(f"⚠️ Impossible de lire le fichier '{liste_path}' : {err}")
+        
     return eleves
 
 def main():
@@ -227,11 +239,21 @@ def main():
     templates_locaux = glob.glob("*.xlsx")
     template_path = ""
 
-    if templates_locaux:
-        print("Fichiers Excel trouvés dans le dossier actuel :")
+    # Filtrer les vrais templates Excel
+    vrais_templates = []
+    for f in templates_locaux:
+        try:
+            wb_t = openpyxl.load_workbook(f, read_only=True)
+            wb_t.close()
+            vrais_templates.append(f)
+        except Exception:
+            pass
+
+    if vrais_templates:
+        print("Fichiers Excel modèles trouvés dans le dossier actuel :")
         valid_opts = []
         def_idx = 1
-        for idx, f in enumerate(templates_locaux, 1):
+        for idx, f in enumerate(vrais_templates, 1):
             print(f"  [{idx}] {f}")
             valid_opts.append(str(idx))
             if "copie" in f.lower() or "template" in f.lower():
@@ -254,9 +276,9 @@ def main():
                     break
                 print(f"❌ Fichier introuvable : '{template_path}'. Réessayez.")
         else:
-            template_path = templates_locaux[int(choix) - 1]
+            template_path = vrais_templates[int(choix) - 1]
     else:
-        print("Aucun fichier .xlsx dans le dossier courant.")
+        print("Aucun fichier modèle .xlsx valide trouvé.")
         if sys.platform == "darwin":
             template_path = get_native_file_picker("Sélectionnez votre fichier template Excel")
         while not template_path or not os.path.exists(template_path):
@@ -271,7 +293,7 @@ def main():
     # -------------------------------------------------------------------------
     print("---------------------------------------------------------------")
     print("📌 2. SÉLECTION DE LA OU DES LISTES D'ÉLÈVES")
-    fichiers_liste = [f for f in glob.glob("*.xlsx") + glob.glob("*.txt") if f != template_path]
+    fichiers_liste = [f for f in glob.glob("*.xlsx") + glob.glob("*.txt") if os.path.abspath(f) != os.path.abspath(template_path)]
     listes_selectionnees = []
 
     if fichiers_liste:
