@@ -1,48 +1,57 @@
 # 🎓 Générateur de Fichiers Élèves (Template Excel)
 
-Un outil automatique pour générer les fichiers d'évaluation Excel individuels par élève à partir d'une liste de classe (`.xlsx` ou `.txt`) et d'un template (`.xlsx`).
+Un outil en Python pour générer automatiquement les fichiers d'évaluation Excel individuels par élève à partir d'une liste de classe (`.xlsx` ou `.txt`) et d'un template modèle (`.xlsx`).
 
 Compatible avec **macOS**, **Linux** et **Windows**.
 
 ---
 
-## 🛠️ Fonctionnalités
+## 📁 Fichiers du projet
 
-* 📂 **Lecture automatique des listes d'élèves** : Supporte les fichiers Excel d'export (extraits avec *Groupe / Classe*, *Nom*, *Prénom*) ou les simples fichiers texte `.txt`.
-* 🏷️ **Nommage personnalisé des fichiers** : Structure au format `[Classe]_[Nom]_[Prénom].xlsx` (ex: `1M4_Arcan_Danny.xlsx`).
-* ✏️ **Mise à jour automatique de la cellule C3** : Remplit la cellule **C3** du template Excel avec le nom complet de l'élève (`Prénom Nom`).
-* 🎨 **Conservation intégrale du style** : Préserve les formules, les couleurs, les bordures et les graphiques du fichier template.
+* **`dupliquer.py`** : Script Python principal de duplication automatique.
+* **`app_tui.py`** : Interface interactive (TUI) guidée pas-à-pas dans le terminal.
+* **`template.xlsx`** : Exemple de fichier modèle Excel.
+* **`liste_eleves.xlsx`** : Exemple de fichier de liste d'élèves (avec colonnes *Nom*, *Prénom*, *Groupe/Classe*).
+
+---
+
+## ✨ Fonctionnalités
+
+* 📂 **Lecture des listes d'élèves** : Détection automatique des colonnes `Nom`, `Prénom` et `Groupe`/`Classe` depuis un fichier `.xlsx` (ou lecture ligne par ligne d'un fichier `.txt`).
+* 🏷️ **Nommage des fichiers** : Format `[Classe]_[Nom]_[Prénom].xlsx` (ex: `1M1_Dupont_Alice.xlsx`).
+* ✏️ **Mise à jour de la cellule C3** : Écrit automatiquement le nom complet de l'élève (`Prénom Nom`) dans la cellule **C3** du fichier généré.
+* 🎨 **Conservation de la mise en page** : Préserve toutes les formules, calculs, couleurs et bordures du fichier template.
 
 ---
 
 ## 🚀 Utilisation
 
-### Option 1 : Lancement rapide (Automatique)
+### 1. Prérequis
 
-Pour lancer la duplication automatique basée sur le template et la liste présents dans le dossier :
+Assurez-vous d'installer la bibliothèque `openpyxl` :
+
+```bash
+pip install openpyxl
+```
+
+---
+
+### 2. Mode automatique (Script CLI)
+
+Placez votre fichier template (ex: `template.xlsx`) et votre fichier de liste (ex: `liste_eleves.xlsx`) dans le dossier du projet, puis exécutez :
 
 ```bash
 python3 dupliquer.py
 ```
 
-Les 20 fichiers d'élèves seront automatiquement créés dans le dossier `fichiers_eleves/`.
+Les fichiers individuels seront générés automatiquement dans le dossier **`fichiers_eleves/`**.
 
 ---
 
-### Option 2 : Interface Interactive (TUI)
+### 3. Mode interactif (Menu guidé)
 
-Pour choisir le template, la liste, le dossier de destination, ainsi que le formatage du nom (avec tiret `_` ou avec espace ` `) et l'ordre dans la cellule C3 :
+Pour personnaliser le formatage (avec tiret `_` ou avec espace ` `), modifier l'ordre dans la cellule C3, ou choisir manuellement les fichiers :
 
 ```bash
 python3 app_tui.py
-```
-
----
-
-## 📦 Dépendances Python
-
-Ce projet utilise `openpyxl` pour la manipulation des fichiers `.xlsx` :
-
-```bash
-pip install openpyxl
 ```
