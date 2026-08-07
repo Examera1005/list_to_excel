@@ -4,7 +4,8 @@ Générateur de Fichiers Élèves - Interface Terminal (TUI)
 Compatible macOS / Linux / Windows
 
 Fonctionnalités avancées :
-- Traitement PAR LOTS (Multi-classes) : traitez 5 listes de classe d'un coup en 1 seul clic !
+- Sélecteur interactif fluide (Flèches HAUT/BAS + Touche ESPACE pour cocher/décocher)
+- Traitement PAR LOTS (Multi-classes) en 1 seul clic
 - Contrôle strict des saisies utilisateur (boucle d'erreur en cas d'entrée invalide)
 - Organisation automatique des sous-dossiers par classe
 """
@@ -53,9 +54,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def get_valid_input(prompt_text, valid_options, default=None):
-    """
-    Demande une saisie à l'utilisateur et boucle tant que la réponse n'est pas valide.
-    """
+    """Demande une saisie et boucle tant que la réponse n'est pas valide."""
     valid_upper = [str(o).upper() for o in valid_options]
     while True:
         saisie = input(prompt_text).strip()
@@ -89,6 +88,82 @@ def get_native_folder_picker(title="Choisir un dossier"):
         except Exception:
             pass
     return None
+
+def read_single_key():
+    """Lit une seule touche du clavier (Flèches, Espace, Entrée, etc.)."""
+    if os.name == 'nt':
+        import msvcrt
+        ch = msvcrt.getch()
+        if ch in (b'\x00', b'\xe0'):
+            code = msvcrt.getch()
+            if code == b'H': return 'UP'
+            if code == b'P': return 'DOWN'
+        elif ch in (b'\r', b'\n'): return 'ENTER'
+        elif ch == b' ': return 'SPACE'
+        return ch.decode('utf-8', errors='ignore').upper()
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == '\x1b':
+                ch2 = sys.stdin.read(1)
+                ch3 = sys.stdin.read(1)
+                if ch3 == 'A': return 'UP'
+                if ch3 == 'B': return 'DOWN'
+            elif ch in ('\r', '\n'): return 'ENTER'
+            elif ch == ' ': return 'SPACE'
+            return ch.upper()
+        finally:
+            termios.tcsetattr(fd, termios.TCSANOW, old_settings)
+
+def interactive_checkbox_selector(items, title="SÉLECTION DES CLASSES"):
+    """
+    Sélecteur interactif avec Flèches HAUT/BAS, ESPACE pour cocher/décocher, ENTRÉE pour valider.
+    """
+    if not items:
+        return []
+
+    cursor = 0
+    checked = [True] * len(items)
+
+    while True:
+        clear_screen()
+        print("===============================================================")
+        print(f" 👥 {title}")
+        print("===============================================================")
+        print(" 💡 Navigation :  Flèche ⬆️  / ⬇️  |  ESPACE = Cocher / Décocher")
+        print("                [A] = Tout cocher | [N] = Tout décocher | ENTRÉE = Valider\n")
+        
+        for idx, item in enumerate(items):
+            is_cur = "👉 " if idx == cursor else "   "
+            is_chk = "[✓]" if checked[idx] else "[ ]"
+            print(f"{is_cur}{is_chk} {item}")
+            
+        nb_checked = sum(checked)
+        print("---------------------------------------------------------------")
+        print(f"📊 {nb_checked} classe(s) sélectionnée(s) sur {len(items)}")
+        
+        key = read_single_key()
+        if key == 'UP':
+            cursor = (cursor - 1) % len(items)
+        elif key == 'DOWN':
+            cursor = (cursor + 1) % len(items)
+        elif key == 'SPACE':
+            checked[cursor] = not checked[cursor]
+        elif key == 'A':
+            checked = [True] * len(items)
+        elif key == 'N':
+            checked = [False] * len(items)
+        elif key == 'ENTER':
+            selected = [items[i] for i in range(len(items)) if checked[i]]
+            if not selected:
+                print("\n❌ Veuillez cocher au moins un fichier avec la touche ESPACE !")
+                import time; time.sleep(1.2)
+                continue
+            return selected
 
 def parse_student_list(liste_path):
     """Extrait les élèves depuis un fichier Excel (.xlsx) ou Texte (.txt)."""
@@ -138,49 +213,6 @@ def parse_student_list(liste_path):
                     eleves.append({"nom": nom, "prenom": prenom, "classe": ""})
                     
     return eleves
-
-def multi_list_selector(fichiers_dispos):
-    """Permet de cocher/décocher plusieurs fichiers de listes d'élèves pour un traitement par lots."""
-    selected_indices = set(range(1, len(fichiers_dispos) + 1))  # Tout cocher par défaut
-    
-    while True:
-        clear_screen()
-        print("===============================================================")
-        print(" 👥 SÉLECTION MULTIPLE DE LISTES DE CLASSES (Traitement par lots)")
-        print("===============================================================")
-        print("Cochez les fichiers de classe que vous souhaitez traiter :\n")
-        
-        for idx, f in enumerate(fichiers_dispos, 1):
-            isChecked = "✓" if idx in selected_indices else " "
-            print(f"  [{idx}] [{isChecked}] 📄 {f}")
-            
-        print("\nOptions :")
-        print("  • Tapez un N° pour Cocher/Décocher (ex: 1)")
-        print("  • Tapez 'A' pour Tout cocher")
-        print("  • Tapez 'N' pour Tout décocher")
-        print("  • Tapez 'OK' pour Valider la sélection ({0} classe(s) sélectionnée(s))".format(len(selected_indices)))
-        
-        cmd = input("\n👉 Choix : ").strip().upper()
-        
-        if cmd == 'OK':
-            if not selected_indices:
-                print("❌ Veuillez sélectionner au moins une liste de classe !")
-                input("Appuyez sur Entrée pour continuer...")
-                continue
-            return [fichiers_dispos[i - 1] for i in sorted(selected_indices)]
-        elif cmd == 'A':
-            selected_indices = set(range(1, len(fichiers_dispos) + 1))
-        elif cmd == 'N':
-            selected_indices.clear()
-        elif cmd.isdigit() and 1 <= int(cmd) <= len(fichiers_dispos):
-            idx = int(cmd)
-            if idx in selected_indices:
-                selected_indices.remove(idx)
-            else:
-                selected_indices.add(idx)
-        else:
-            print(f"❌ Commande non reconnue : '{cmd}'")
-            input("Appuyez sur Entrée...")
 
 def main():
     clear_screen()
@@ -243,8 +275,8 @@ def main():
     listes_selectionnees = []
 
     if fichiers_liste:
-        print("  [1] Sélectionner UN SEUL fichier de liste")
-        print(f"  [2] TRAITEMENT PAR LOTS (Multi-classes) -> Choisir parmi {len(fichiers_liste)} fichier(s)")
+        print("  [1] Choisir UN SEUL fichier de liste")
+        print(f"  [2] TRAITEMENT PAR LOTS (Multi-classes - Sélecteur Flèches + Espace)")
         if sys.platform == "darwin":
             print("  [M] Sélecteur macOS")
         print("  [S] Saisir le chemin manuellement")
@@ -256,7 +288,7 @@ def main():
         mode_l = get_valid_input("\n👉 Mode de sélection (défaut=1) : ", opts, default="1")
         
         if mode_l == "2":
-            listes_selectionnees = multi_list_selector(fichiers_liste)
+            listes_selectionnees = interactive_checkbox_selector(fichiers_liste, title="SÉLECTION MULTIPLE DES CLASSES (Flèches + Espace)")
         elif mode_l == "M":
             f_mac = get_native_file_picker("Sélectionnez le fichier liste d'élèves")
             if f_mac:
@@ -368,10 +400,8 @@ def main():
                 print(f"\n⚠️ Aucun élève trouvé dans '{liste_file}'. Fichier ignoré.")
                 continue
 
-            # Déterminer le nom de la classe
             nom_classe = eleves[0]["classe"] if eleves[0]["classe"] else os.path.splitext(os.path.basename(liste_file))[0]
             
-            # Si multi-classes, créer un sous-dossier par classe
             if len(listes_selectionnees) > 1:
                 target_dir = os.path.join(dossier_parent, nom_classe)
             else:
