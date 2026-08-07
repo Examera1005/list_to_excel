@@ -9,7 +9,42 @@ Script de duplication automatique de templates Excel par élève.
 import os
 import sys
 import glob
-import openpyxl
+import subprocess
+
+def ensure_openpyxl():
+    """Vérifie si openpyxl est installé et propose de l'installer si nécessaire."""
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        print("===============================================================")
+        print(" ⚠️ DÉPENDANCE MANQUANTE : openpyxl")
+        print("===============================================================")
+        print("La bibliothèque 'openpyxl' est nécessaire pour lire et modifier")
+        print("les fichiers Excel (.xlsx).\n")
+        
+        choix = input("👉 Souhaitez-vous l'installer automatiquement maintenant ? [O/n] : ").strip().lower()
+        if choix in ['', 'o', 'oui', 'y', 'yes']:
+            print("\n⏳ Installation de 'openpyxl' via pip...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+            except Exception:
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "--break-system-packages"])
+                except Exception as err:
+                    print(f"\n❌ Échec de l'installation automatique : {err}")
+                    print("💡 Veuillez installer la bibliothèque manuellement avec :")
+                    print("   pip3 install openpyxl")
+                    sys.exit(1)
+                    
+            print("✅ 'openpyxl' a été installé avec succès !\n")
+            import openpyxl
+            return openpyxl
+        else:
+            print("\n❌ Impossible de continuer sans 'openpyxl'.")
+            sys.exit(1)
+
+openpyxl = ensure_openpyxl()
 
 def find_files():
     """Détecte automatiquement le fichier template et le fichier de liste."""
@@ -71,7 +106,6 @@ def parse_student_list(liste_path):
                     "classe": str(grp).strip() if grp else ""
                 })
     else:
-        # Fichier texte
         with open(liste_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -122,18 +156,14 @@ def main():
         prenom = e["prenom"]
         classe = e["classe"]
         
-        # Formater le nom du fichier ex: 1M4_Arcan_Danny.xlsx
         parts = [p for p in [classe, nom, prenom] if p]
         nom_fichier = "_".join(parts).replace(" ", "_") + ".xlsx"
         
-        # Charger le template et modifier la cellule C3
         wb = openpyxl.load_workbook(template_file)
         ws = wb.active
         
-        # Inscrire le prénom et le nom dans la cellule C3
         ws['C3'] = f"{prenom} {nom}".strip()
         
-        # Sauvegarder
         dest_path = os.path.join(output_dir, nom_fichier)
         wb.save(dest_path)
         count += 1
@@ -145,4 +175,8 @@ def main():
     print("===============================================================")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\nInterrompu par l'utilisateur.")
+        sys.exit(0)

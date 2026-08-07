@@ -8,7 +8,41 @@ import os
 import sys
 import glob
 import subprocess
-import openpyxl
+
+def ensure_openpyxl():
+    """Vérifie si openpyxl est installé et propose de l'installer si nécessaire."""
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        print("===============================================================")
+        print(" ⚠️ DÉPENDANCE MANQUANTE : openpyxl")
+        print("===============================================================")
+        print("La bibliothèque 'openpyxl' est nécessaire pour lire et modifier")
+        print("les fichiers Excel (.xlsx).\n")
+        
+        choix = input("👉 Souhaitez-vous l'installer automatiquement maintenant ? [O/n] : ").strip().lower()
+        if choix in ['', 'o', 'oui', 'y', 'yes']:
+            print("\n⏳ Installation de 'openpyxl' via pip...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+            except Exception:
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "--break-system-packages"])
+                except Exception as err:
+                    print(f"\n❌ Échec de l'installation automatique : {err}")
+                    print("💡 Veuillez installer la bibliothèque manuellement avec :")
+                    print("   pip3 install openpyxl")
+                    sys.exit(1)
+                    
+            print("✅ 'openpyxl' a été installé avec succès !\n")
+            import openpyxl
+            return openpyxl
+        else:
+            print("\n❌ Impossible de continuer sans 'openpyxl'.")
+            sys.exit(1)
+
+openpyxl = ensure_openpyxl()
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -107,7 +141,6 @@ def main():
         print(f"  [M] Ouvrir le sélecteur macOS")
         print(f"  [S] Saisir le chemin manuellement")
         
-        # Prédélection du template
         def_idx = 1
         for idx, f in enumerate(templates_locaux, 1):
             if "copie" in f.lower() or "template" in f.lower():
@@ -153,7 +186,6 @@ def main():
         print(f"  [M] Ouvrir le sélecteur macOS")
         print(f"  [S] Saisir le chemin manuellement")
         
-        # Prédirection de la liste
         def_idx_l = 1
         for idx, f in enumerate(fichiers_liste, 1):
             if "liste" in f.lower() or f == "eleves.txt":
