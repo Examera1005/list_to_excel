@@ -1,4 +1,6 @@
-fichiers_eleves/
+fichiers_eleves*/
 __pycache__/
 *.pyc
 *.app/
+*.zip
+

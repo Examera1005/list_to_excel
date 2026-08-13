@@ -1,3 +1,5 @@
+🇫🇷 **Français** | [🇬🇧 English](README_EN.md)
+
 # 🎓 Générateur de Fichiers Élèves (Template Excel)
 
 Un outil automatique et élégant en Python pour générer les fichiers d'évaluation Excel individuels par élève à partir de vos listes de classes (`.xlsx` ou `.txt`) et d'un fichier modèle (`.xlsx`).

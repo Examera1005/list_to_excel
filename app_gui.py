@@ -71,7 +71,7 @@ def download_and_apply_update():
             for member in z.namelist():
                 filename = os.path.basename(member)
                 if filename and not filename.startswith('.'):
-                    if filename in ['app_gui.py', 'app_tui.py', 'dupliquer.py', 'build_mac_app.py', 'README.md', 'template.xlsx', 'liste_eleves_1M1.xlsx', 'liste_eleves_1M2.xlsx']:
+                    if filename in ['app_gui.py', 'app_tui.py', 'dupliquer.py', 'build_mac_app.py', 'README.md', 'README_EN.md', 'template.xlsx', 'liste_eleves_1M1.xlsx', 'liste_eleves_1M2.xlsx']:
                         dest_path = os.path.join(script_dir, filename)
                         with z.open(member) as src_f, open(dest_path, 'wb') as dst_f:
                             dst_f.write(src_f.read())
